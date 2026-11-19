@@ -1,0 +1,2 @@
+ALTER TABLE "salary_settings" ADD COLUMN "extra_income" numeric(12, 2) DEFAULT '0.00' NOT NULL;--> statement-breakpoint
+ALTER TABLE "salary_settings" ADD CONSTRAINT "chk_salary_settings_extra_nonnegative" CHECK ("salary_settings"."extra_income" >= 0);

@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: moneyflow-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: moneyflow
+      POSTGRES_PASSWORD: moneyflow_local_pw
+      POSTGRES_DB: moneyflow
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
+    volumes:
+      - moneyflow_pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moneyflow -d moneyflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ocr-worker:
+    profiles: ["ocr"]
+    build:
+      context: ./ocr-worker
+    container_name: moneyflow-ocr
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      OCR_HOST: 0.0.0.0
+      OCR_PORT: "8001"
+      OCR_THREADS: "1"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  moneyflow_pgdata:
+    name: moneyflow_pgdata

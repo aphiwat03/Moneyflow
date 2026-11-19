@@ -1,0 +1,2 @@
+ALTER TABLE "categories" ADD COLUMN "monthly_budget" numeric(12, 2);--> statement-breakpoint
+ALTER TABLE "categories" ADD CONSTRAINT "chk_categories_budget_positive" CHECK ("categories"."monthly_budget" IS NULL OR "categories"."monthly_budget" > 0);
