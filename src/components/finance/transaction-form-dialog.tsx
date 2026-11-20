@@ -31,6 +31,7 @@ import { toast } from "@/components/ui/toast";
 import { getBangkokToday } from "@/lib/date";
 import { formatMoneyDisplay } from "@/lib/decimal";
 import { pickSlipWalletId } from "@/lib/slip-parser";
+import { extractTaxAlertFromResult } from "@/lib/thai-tax";
 import type {
   SlipOcrProviderName,
   SlipOcrScanResponse,
@@ -444,6 +445,11 @@ function TransactionFormBody({
           : undefined;
         setError(firstFieldErr ?? result.error ?? "บันทึกข้อมูลไม่สำเร็จ");
         return;
+      }
+
+      const taxAlert = extractTaxAlertFromResult(result.data);
+      if (taxAlert) {
+        toast[taxAlert.kind](taxAlert.title, taxAlert.detail);
       }
 
       onClose();
