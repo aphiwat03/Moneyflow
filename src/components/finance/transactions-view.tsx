@@ -115,7 +115,7 @@ export function TransactionsView({
     endDate: "",
   });
 
-  const [viewMode, setViewMode] = useState<"list" | "daily">("list");
+  const [viewMode, setViewMode] = useState<"list" | "daily">("daily");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -204,20 +204,6 @@ export function TransactionsView({
     setFilters(updater);
     setPage(1);
   }
-
-  const summary = useMemo(() => {
-    const income = sumMoney(
-      filtered.filter((t) => t.type === "income").map((t) => t.amount)
-    );
-    const expense = sumMoney(
-      filtered.filter((t) => t.type === "expense").map((t) => t.amount)
-    );
-    return {
-      income,
-      expense,
-      net: income.minus(expense),
-    };
-  }, [filtered]);
 
   function resetFilters() {
     setFilters({
@@ -497,19 +483,6 @@ export function TransactionsView({
               <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
                 <button
                   type="button"
-                  onClick={() => setViewMode("list")}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    viewMode === "list"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  <span>ตารางรวม</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => setViewMode("daily")}
                   className={cn(
                     "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
@@ -521,19 +494,22 @@ export function TransactionsView({
                   <CalendarDays className="h-3.5 w-3.5" />
                   <span>จัดกลุ่มรายวัน</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    viewMode === "list"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  <span>ตารางรวม</span>
+                </button>
               </div>
               <span className="text-muted-foreground">
                 พบ <strong>{filtered.length}</strong> รายการ
-              </span>
-              <span className="text-emerald-600 tabular-nums">
-                รับ +฿{formatMoneyDisplay(summary.income)}
-              </span>
-              <span className="text-rose-600 tabular-nums">
-                จ่าย -฿{formatMoneyDisplay(summary.expense)}
-              </span>
-              <span className="font-semibold tabular-nums">
-                สุทธิ {summary.net.gte(0) ? "+" : "-"}฿
-                {formatMoneyDisplay(summary.net.abs())}
               </span>
             </div>
           </div>
@@ -554,8 +530,8 @@ export function TransactionsView({
               {dailyGroups.map((group) => {
                 const isToday = group.date === todayIso;
                 return (
-                  <Card key={group.date}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5 text-xs">
+                  <Card key={group.date} className="gap-0 py-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 text-xs">
                       <span className="font-semibold">
                         {isToday ? "วันนี้ • " : ""}
                         {formatIsoDateForDisplay(group.date)}
