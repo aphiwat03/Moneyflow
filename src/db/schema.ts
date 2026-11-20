@@ -287,9 +287,229 @@ export const salaryAllocations = pgTable(
   ]
 );
 
+export const investmentSettings = pgTable(
+  "investment_settings",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    targetGoalAmount: numeric("target_goal_amount", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("2000000.00")
+      .notNull(),
+    startingPrincipal: numeric("starting_principal", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    monthlyDca: numeric("monthly_dca", { precision: 12, scale: 2 })
+      .default("3000.00")
+      .notNull(),
+    expectedAnnualReturnPct: numeric("expected_annual_return_pct", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("8.00")
+      .notNull(),
+    horizonYears: integer("horizon_years").default(15).notNull(),
+    annualDcaStepUpPct: numeric("annual_dca_step_up_pct", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    reinvestDividends: boolean("reinvest_dividends").default(true).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    check("chk_inv_settings_goal_nonneg", sql`${t.targetGoalAmount} >= 0`),
+    check("chk_inv_settings_principal_nonneg", sql`${t.startingPrincipal} >= 0`),
+    check("chk_inv_settings_dca_nonneg", sql`${t.monthlyDca} >= 0`),
+    check(
+      "chk_inv_settings_return_range",
+      sql`${t.expectedAnnualReturnPct} >= 0 AND ${t.expectedAnnualReturnPct} <= 50`
+    ),
+    check(
+      "chk_inv_settings_horizon_range",
+      sql`${t.horizonYears} >= 1 AND ${t.horizonYears} <= 50`
+    ),
+    check(
+      "chk_inv_settings_stepup_range",
+      sql`${t.annualDcaStepUpPct} >= 0 AND ${t.annualDcaStepUpPct} <= 30`
+    ),
+  ]
+);
+
+export const investmentHoldings = pgTable(
+  "investment_holdings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: varchar("symbol", { length: 30 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    assetType: varchar("asset_type", { length: 20 })
+      .$type<"etf" | "stock" | "mutual_fund" | "gold_bond" | "other">()
+      .notNull(),
+    targetAllocationPct: numeric("target_allocation_pct", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    expectedAnnualReturnPct: numeric("expected_annual_return_pct", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("8.00")
+      .notNull(),
+    investedCost: numeric("invested_cost", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    currentValue: numeric("current_value", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    dividendsReceived: numeric("dividends_received", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    units: numeric("units", { precision: 18, scale: 6 }),
+    currency: varchar("currency", { length: 10 })
+      .$type<"THB" | "USD">()
+      .default("THB")
+      .notNull(),
+    broker: varchar("broker", { length: 60 }),
+    note: text("note"),
+    color: varchar("color", { length: 20 }).default("#0f766e").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    check(
+      "chk_inv_holding_asset_type",
+      sql`${t.assetType} IN ('etf', 'stock', 'mutual_fund', 'gold_bond', 'other')`
+    ),
+    check("chk_inv_holding_currency", sql`${t.currency} IN ('THB', 'USD')`),
+    check(
+      "chk_inv_holding_alloc_range",
+      sql`${t.targetAllocationPct} >= 0 AND ${t.targetAllocationPct} <= 100`
+    ),
+    check(
+      "chk_inv_holding_return_range",
+      sql`${t.expectedAnnualReturnPct} >= 0 AND ${t.expectedAnnualReturnPct} <= 50`
+    ),
+    check("chk_inv_holding_cost_nonneg", sql`${t.investedCost} >= 0`),
+    check("chk_inv_holding_value_nonneg", sql`${t.currentValue} >= 0`),
+    check("chk_inv_holding_div_nonneg", sql`${t.dividendsReceived} >= 0`),
+    check(
+      "chk_inv_holding_units_nonneg",
+      sql`${t.units} IS NULL OR ${t.units} >= 0`
+    ),
+    index("idx_inv_holdings_user_sort").on(t.userId, t.sortOrder, t.createdAt),
+  ]
+);
+
+export const investmentSnapshots = pgTable(
+  "investment_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    monthKey: varchar("month_key", { length: 7 }).notNull(),
+    investedCost: numeric("invested_cost", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    marketValue: numeric("market_value", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    dividends: numeric("dividends", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    unique("uq_inv_snapshots_user_month").on(t.userId, t.monthKey),
+    check("chk_inv_snap_cost_nonneg", sql`${t.investedCost} >= 0`),
+    check("chk_inv_snap_val_nonneg", sql`${t.marketValue} >= 0`),
+    check("chk_inv_snap_div_nonneg", sql`${t.dividends} >= 0`),
+    index("idx_inv_snapshots_user_month").on(t.userId, t.monthKey),
+  ]
+);
+
+export const investmentDcaLogs = pgTable(
+  "investment_dca_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    holdingId: uuid("holding_id")
+      .notNull()
+      .references(() => investmentHoldings.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    executedDate: date("executed_date", { mode: "string" }).notNull(),
+    amountThb: numeric("amount_thb", { precision: 12, scale: 2 }).notNull(),
+    unitsBought: numeric("units_bought", { precision: 18, scale: 6 }),
+    pricePerUnit: numeric("price_per_unit", { precision: 14, scale: 4 }),
+    feeThb: numeric("fee_thb", { precision: 12, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    check("chk_inv_dca_amount_positive", sql`${t.amountThb} > 0`),
+    check("chk_inv_dca_fee_nonneg", sql`${t.feeThb} >= 0`),
+    check(
+      "chk_inv_dca_units_nonneg",
+      sql`${t.unitsBought} IS NULL OR ${t.unitsBought} >= 0`
+    ),
+    check(
+      "chk_inv_dca_price_nonneg",
+      sql`${t.pricePerUnit} IS NULL OR ${t.pricePerUnit} >= 0`
+    ),
+    index("idx_inv_dca_logs_user_date").on(t.userId, t.executedDate),
+    index("idx_inv_dca_logs_holding").on(t.holdingId),
+  ]
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type WalletRecord = typeof wallets.$inferSelect;
 export type CategoryRecord = typeof categories.$inferSelect;
 export type TransactionRecord = typeof transactions.$inferSelect;
 export type SalarySettingsRecord = typeof salarySettings.$inferSelect;
 export type SalaryAllocationRecord = typeof salaryAllocations.$inferSelect;
+export type InvestmentSettingsRecord = typeof investmentSettings.$inferSelect;
+export type InvestmentHoldingRecord = typeof investmentHoldings.$inferSelect;
+export type InvestmentSnapshotRecord = typeof investmentSnapshots.$inferSelect;
+export type InvestmentDcaLogRecord = typeof investmentDcaLogs.$inferSelect;

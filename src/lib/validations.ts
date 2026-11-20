@@ -19,6 +19,14 @@ export const PLAN_BUCKET_TYPES = [
   "other",
 ] as const;
 export const PLAN_ALLOCATION_MODES = ["fixed", "percent"] as const;
+export const INVESTMENT_ASSET_TYPES = [
+  "etf",
+  "stock",
+  "mutual_fund",
+  "gold_bond",
+  "other",
+] as const;
+export const INVESTMENT_CURRENCIES = ["THB", "USD"] as const;
 
 const MAX_NUMERIC_12_2 = new Decimal("9999999999.99");
 const MIN_NUMERIC_12_2 = new Decimal("-9999999999.99");
@@ -354,4 +362,230 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.email("รูปแบบอีเมลไม่ถูกต้อง").trim().toLowerCase(),
   password: z.string().min(1, "กรุณากรอกรหัสผ่าน"),
+});
+
+export const monthKeySchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "รูปแบบเดือนต้องเป็น YYYY-MM");
+
+export const optionalNonNegativeUnitsSchema = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .or(z.literal(""))
+  .transform((v) => (v && v.length > 0 ? v : null))
+  .refine(
+    (v) => v === null || /^\d+(\.\d{1,6})?$/.test(v),
+    "จำนวนหน่วยต้องเป็นตัวเลขทศนิยมไม่เกิน 6 ตำแหน่ง"
+  )
+  .transform((v) => (v === null ? null : new Decimal(v).toFixed(6)));
+
+export const optionalNonNegativePriceSchema = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .or(z.literal(""))
+  .transform((v) => (v && v.length > 0 ? v : null))
+  .refine(
+    (v) => v === null || /^\d+(\.\d{1,4})?$/.test(v),
+    "ราคาต่อหน่วยต้องเป็นตัวเลขทศนิยมไม่เกิน 4 ตำแหน่ง"
+  )
+  .transform((v) => (v === null ? null : new Decimal(v).toFixed(4)));
+
+export const investmentSettingsSchema = z.object({
+  targetGoalAmount: nonNegativeMoneyStringSchema,
+  startingPrincipal: nonNegativeMoneyStringSchema,
+  monthlyDca: nonNegativeMoneyStringSchema,
+  expectedAnnualReturnPct: z.coerce
+    .number()
+    .min(0, "ผลตอบแทนคาดหวังต้องไม่ติดลบ")
+    .max(50, "ผลตอบแทนคาดหวังต้องไม่เกิน 50% ต่อปี"),
+  horizonYears: z.coerce
+    .number()
+    .int("ระยะเวลาต้องเป็นจำนวนปีเต็ม")
+    .min(1, "ระยะเวลาต้องอย่างน้อย 1 ปี")
+    .max(50, "ระยะเวลาต้องไม่เกิน 50 ปี"),
+  annualDcaStepUpPct: z.coerce
+    .number()
+    .min(0, "อัตราเพิ่มเงิน DCA ต่อปีต้องไม่ติดลบ")
+    .max(30, "อัตราเพิ่มเงิน DCA ต่อปีต้องไม่เกิน 30%"),
+  reinvestDividends: z.boolean().default(true),
+});
+
+export const investmentHoldingSchema = z.object({
+  symbol: z
+    .string()
+    .trim()
+    .min(1, "กรุณาระบุชื่อย่อหุ้นหรือกองทุน")
+    .max(30, "ชื่อย่อต้องไม่เกิน 30 ตัวอักษร")
+    .transform((v) => v.toUpperCase()),
+  name: z
+    .string()
+    .trim()
+    .min(1, "กรุณาระบุชื่อเต็มของสินทรัพย์")
+    .max(120, "ชื่อสินทรัพย์ต้องไม่เกิน 120 ตัวอักษร"),
+  assetType: z.enum(INVESTMENT_ASSET_TYPES),
+  targetAllocationPct: z.coerce
+    .number()
+    .min(0, "สัดส่วนเป้าหมายต้องอยู่ระหว่าง 0–100%")
+    .max(100, "สัดส่วนเป้าหมายต้องอยู่ระหว่าง 0–100%"),
+  expectedAnnualReturnPct: z.coerce
+    .number()
+    .min(0, "ผลตอบแทนคาดหวังต้องอยู่ระหว่าง 0–50%")
+    .max(50, "ผลตอบแทนคาดหวังต้องอยู่ระหว่าง 0–50%"),
+  investedCost: nonNegativeMoneyStringSchema.default("0.00"),
+  currentValue: nonNegativeMoneyStringSchema.default("0.00"),
+  dividendsReceived: nonNegativeMoneyStringSchema.default("0.00"),
+  units: optionalNonNegativeUnitsSchema,
+  currency: z.enum(INVESTMENT_CURRENCIES).default("THB"),
+  broker: z
+    .string()
+    .trim()
+    .max(60, "ชื่อโบรคเกอร์ต้องไม่เกิน 60 ตัวอักษร")
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  note: z
+    .string()
+    .trim()
+    .max(500, "หมายเหตุต้องไม่เกิน 500 ตัวอักษร")
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, "รูปแบบรหัสสีไม่ถูกต้อง")
+    .default("#0f766e"),
+});
+
+export const investmentSnapshotSchema = z.object({
+  monthKey: monthKeySchema,
+  investedCost: nonNegativeMoneyStringSchema,
+  marketValue: nonNegativeMoneyStringSchema,
+  dividends: nonNegativeMoneyStringSchema.default("0.00"),
+  note: z
+    .string()
+    .trim()
+    .max(500, "หมายเหตุต้องไม่เกิน 500 ตัวอักษร")
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+});
+
+export const recordDcaExecutionSchema = z
+  .object({
+    holdingId: z.string().uuid("รหัสสินทรัพย์ไม่ถูกต้อง"),
+    executedDate: isoDateSchema,
+    amountThb: positiveMoneyStringSchema,
+    unitsBought: optionalNonNegativeUnitsSchema,
+    pricePerUnit: optionalNonNegativePriceSchema,
+    feeThb: nonNegativeMoneyStringSchema.default("0.00"),
+    note: z
+      .string()
+      .trim()
+      .max(500, "หมายเหตุต้องไม่เกิน 500 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    createTransferTransaction: z.boolean().default(false),
+    sourceWalletId: z
+      .string()
+      .uuid("รหัสกระเป๋าเงินต้นทางไม่ถูกต้อง")
+      .optional()
+      .nullable()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : null)),
+    targetInvestmentWalletId: z
+      .string()
+      .uuid("รหัสกระเป๋าลงทุนปลายทางไม่ถูกต้อง")
+      .optional()
+      .nullable()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : null)),
+  })
+  .superRefine((data, ctx) => {
+    if (data.createTransferTransaction) {
+      if (!data.sourceWalletId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sourceWalletId"],
+          message: "กรุณาเลือกบัญชีต้นทางสำหรับโอนเงิน DCA",
+        });
+      }
+      if (!data.targetInvestmentWalletId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targetInvestmentWalletId"],
+          message: "กรุณาเลือกกระเป๋าลงทุนปลายทาง",
+        });
+      }
+      if (
+        data.sourceWalletId &&
+        data.targetInvestmentWalletId &&
+        data.sourceWalletId === data.targetInvestmentWalletId
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targetInvestmentWalletId"],
+          message: "บัญชีต้นทางและกระเป๋าลงทุนปลายทางต้องไม่ซ้ำกัน",
+        });
+      }
+    }
+  });
+
+export const recordDividendSchema = z
+  .object({
+    holdingId: z.string().uuid("รหัสสินทรัพย์ไม่ถูกต้อง"),
+    receivedDate: isoDateSchema,
+    amountThb: positiveMoneyStringSchema,
+    note: z
+      .string()
+      .trim()
+      .max(500, "หมายเหตุต้องไม่เกิน 500 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    createIncomeTransaction: z.boolean().default(false),
+    walletId: z
+      .string()
+      .uuid("รหัสกระเป๋าเงินรับปันผลไม่ถูกต้อง")
+      .optional()
+      .nullable()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : null)),
+    categoryId: z
+      .string()
+      .uuid("รหัสหมวดหมู่รายรับไม่ถูกต้อง")
+      .optional()
+      .nullable()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : null)),
+  })
+  .superRefine((data, ctx) => {
+    if (data.createIncomeTransaction) {
+      if (!data.walletId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["walletId"],
+          message: "กรุณาเลือกกระเป๋าเงินที่รับปันผล",
+        });
+      }
+      if (!data.categoryId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["categoryId"],
+          message: "กรุณาเลือกหมวดหมู่รายรับสำหรับเงินปันผล",
+        });
+      }
+    }
+  });
+
+export const importLocalInvestmentsSchema = z.object({
+  settings: investmentSettingsSchema.optional().nullable(),
+  holdings: z.array(investmentHoldingSchema).max(100).default([]),
+  snapshots: z.array(investmentSnapshotSchema).max(240).default([]),
 });

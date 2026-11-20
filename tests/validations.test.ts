@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   categorySchema,
+  investmentHoldingSchema,
+  investmentSettingsSchema,
   positiveMoneyStringSchema,
+  recordDcaExecutionSchema,
+  recordDividendSchema,
   salaryAllocationSchema,
   salarySettingsSchema,
   transactionSchema,
@@ -172,6 +176,68 @@ describe("Zod validation schemas", () => {
         bucketType: "dca",
         mode: "percent",
         value: "120",
+      })
+    ).toThrow();
+  });
+
+  it("validates Phase 9 investment settings, holdings, DCA executions, and dividends", () => {
+    const HOLDING_ID = "44444444-4444-4444-8444-444444444444";
+
+    const settings = investmentSettingsSchema.parse({
+      targetGoalAmount: "2500000",
+      startingPrincipal: "0",
+      monthlyDca: "3500.5",
+      expectedAnnualReturnPct: 8.5,
+      horizonYears: 15,
+      annualDcaStepUpPct: 5,
+      reinvestDividends: true,
+    });
+    expect(settings.monthlyDca).toBe("3500.50");
+
+    const holding = investmentHoldingSchema.parse({
+      symbol: " voo ",
+      name: "Vanguard S&P 500 ETF",
+      assetType: "etf",
+      targetAllocationPct: 60,
+      expectedAnnualReturnPct: 9,
+      units: "1.25",
+      currency: "USD",
+    });
+    expect(holding.symbol).toBe("VOO");
+    expect(holding.units).toBe("1.250000");
+
+    const dca = recordDcaExecutionSchema.parse({
+      holdingId: HOLDING_ID,
+      executedDate: "2026-11-20",
+      amountThb: "3000",
+      unitsBought: "0.15",
+      createTransferTransaction: true,
+      sourceWalletId: WALLET_A,
+      targetInvestmentWalletId: WALLET_B,
+    });
+    expect(dca.amountThb).toBe("3000.00");
+    expect(dca.unitsBought).toBe("0.150000");
+
+    // Reject DCA transfer with identical source and target wallet
+    expect(() =>
+      recordDcaExecutionSchema.parse({
+        holdingId: HOLDING_ID,
+        executedDate: "2026-11-20",
+        amountThb: "3000",
+        createTransferTransaction: true,
+        sourceWalletId: WALLET_A,
+        targetInvestmentWalletId: WALLET_A,
+      })
+    ).toThrow();
+
+    // Reject dividend income transaction without categoryId
+    expect(() =>
+      recordDividendSchema.parse({
+        holdingId: HOLDING_ID,
+        receivedDate: "2026-11-20",
+        amountThb: "200",
+        createIncomeTransaction: true,
+        walletId: WALLET_A,
       })
     ).toThrow();
   });

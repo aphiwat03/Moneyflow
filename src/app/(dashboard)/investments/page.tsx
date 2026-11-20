@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { InvestmentsView } from "@/components/finance/investments-view";
-import { getBangkokYearMonth } from "@/lib/date";
-import { formatFixed2, sumMoney } from "@/lib/decimal";
-import { getUserPlanPageData } from "@/lib/finance-queries";
+import { DatabaseConnectionWarning } from "@/components/finance/db-connection-warning";
+import { DbInvestmentsClient } from "@/components/finance/db-investments-client";
+import { getBangkokToday, getBangkokYearMonth } from "@/lib/date";
+import { getUserInvestmentPageData } from "@/lib/finance-queries";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -14,33 +14,34 @@ async function InvestmentsContent() {
   const user = await requireUser();
   const { year, month } = getBangkokYearMonth();
   const currentMonthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const todayIso = getBangkokToday();
 
-  let linkedInvestmentWalletTotal = "0.00";
-  let linkedInvestmentWalletCount = 0;
-  let linkedPlanDcaMonthly = "0.00";
-
+  let data: Awaited<ReturnType<typeof getUserInvestmentPageData>> | null = null;
   try {
-    const planData = await getUserPlanPageData(user.id, year, month);
-    const investmentWallets = planData.wallets.filter(
-      (w) => !w.isArchived && w.type === "investment"
-    );
-    linkedInvestmentWalletCount = investmentWallets.length;
-    linkedInvestmentWalletTotal = formatFixed2(
-      sumMoney(investmentWallets.map((w) => w.currentBalance))
-    );
-    linkedPlanDcaMonthly = planData.summary.bucketTotals.dca;
+    data = await getUserInvestmentPageData(user.id);
   } catch (error) {
-    console.error("Investments page context query error:", error);
+    console.error("Investments page database query error:", error);
+  }
+
+  if (!data) {
+    return <DatabaseConnectionWarning />;
   }
 
   return (
-    <InvestmentsView
+    <DbInvestmentsClient
       storageKey={`moneyflow_investments_ui_${user.id}`}
       currentGregorianYear={year}
       currentMonthKey={currentMonthKey}
-      linkedInvestmentWalletTotal={linkedInvestmentWalletTotal}
-      linkedInvestmentWalletCount={linkedInvestmentWalletCount}
-      linkedPlanDcaMonthly={linkedPlanDcaMonthly}
+      todayIso={todayIso}
+      initialSettings={data.settings}
+      initialHoldings={data.holdings}
+      initialSnapshots={data.snapshots}
+      initialDcaLogs={data.dcaLogs}
+      wallets={data.wallets}
+      incomeCategories={data.incomeCategories}
+      linkedInvestmentWalletTotal={data.linkedInvestmentWalletTotal}
+      linkedInvestmentWalletCount={data.linkedInvestmentWalletCount}
+      linkedPlanDcaMonthly={data.linkedPlanDcaMonthly}
     />
   );
 }

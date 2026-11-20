@@ -196,6 +196,8 @@ export type InvestmentAssetType =
   | "gold_bond"
   | "other";
 
+export type InvestmentCurrency = "THB" | "USD";
+
 export interface InvestmentPlanSettingsDTO {
   targetGoalAmount: string;
   startingPrincipal: string;
@@ -216,9 +218,12 @@ export interface InvestmentHoldingDTO {
   investedCost: string;
   currentValue: string;
   dividendsReceived: string;
+  units?: string | null;
+  currency?: InvestmentCurrency;
   broker: string | null;
   note: string | null;
   color: string;
+  sortOrder?: number;
 }
 
 export interface InvestmentSnapshotDTO {
@@ -228,6 +233,42 @@ export interface InvestmentSnapshotDTO {
   marketValue: string;
   dividends: string;
   note: string | null;
+}
+
+export interface InvestmentDcaLogDTO {
+  id: string;
+  holdingId: string;
+  holdingSymbol: string;
+  holdingName: string;
+  transactionId: string | null;
+  executedDate: string; // YYYY-MM-DD
+  amountThb: string;
+  unitsBought: string | null;
+  pricePerUnit: string | null;
+  feeThb: string;
+  note: string | null;
+}
+
+export interface MonthlyDcaChecklistItem {
+  holdingId: string;
+  symbol: string;
+  name: string;
+  color: string;
+  assetType: InvestmentAssetType;
+  plannedAmountThb: string;
+  boughtAmountThb: string;
+  remainingAmountThb: string;
+  executionCount: number;
+  status: "pending" | "partial" | "done";
+}
+
+export interface MonthlyDcaChecklistSummary {
+  monthKey: string;
+  items: MonthlyDcaChecklistItem[];
+  totalPlannedThb: string;
+  totalBoughtThb: string;
+  completedCount: number;
+  totalCount: number;
 }
 
 export interface InvestmentProjectionPoint {

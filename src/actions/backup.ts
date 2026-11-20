@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
   categories,
+  investmentDcaLogs,
+  investmentHoldings,
+  investmentSettings,
+  investmentSnapshots,
   salaryAllocations,
   salarySettings,
   transactions,
@@ -23,6 +27,7 @@ function revalidateAllViews() {
   revalidatePath("/");
   revalidatePath("/transactions");
   revalidatePath("/plan");
+  revalidatePath("/investments");
   revalidatePath("/manage");
 }
 
@@ -38,6 +43,10 @@ export async function exportUserBackupAction(): Promise<
       userSettingsRows,
       userAllocations,
       userTransactions,
+      userInvSettingsRows,
+      userInvHoldings,
+      userInvSnapshots,
+      userInvDcaLogs,
     ] = await Promise.all([
       db
         .select({
@@ -106,14 +115,108 @@ export async function exportUserBackupAction(): Promise<
         .from(transactions)
         .where(eq(transactions.userId, user.id))
         .orderBy(desc(transactions.transactionDate), desc(transactions.createdAt)),
+      db
+        .select({
+          targetGoalAmount: investmentSettings.targetGoalAmount,
+          startingPrincipal: investmentSettings.startingPrincipal,
+          monthlyDca: investmentSettings.monthlyDca,
+          expectedAnnualReturnPct: investmentSettings.expectedAnnualReturnPct,
+          horizonYears: investmentSettings.horizonYears,
+          annualDcaStepUpPct: investmentSettings.annualDcaStepUpPct,
+          reinvestDividends: investmentSettings.reinvestDividends,
+        })
+        .from(investmentSettings)
+        .where(eq(investmentSettings.userId, user.id))
+        .limit(1),
+      db
+        .select({
+          id: investmentHoldings.id,
+          symbol: investmentHoldings.symbol,
+          name: investmentHoldings.name,
+          assetType: investmentHoldings.assetType,
+          targetAllocationPct: investmentHoldings.targetAllocationPct,
+          expectedAnnualReturnPct: investmentHoldings.expectedAnnualReturnPct,
+          investedCost: investmentHoldings.investedCost,
+          currentValue: investmentHoldings.currentValue,
+          dividendsReceived: investmentHoldings.dividendsReceived,
+          units: investmentHoldings.units,
+          currency: investmentHoldings.currency,
+          broker: investmentHoldings.broker,
+          note: investmentHoldings.note,
+          color: investmentHoldings.color,
+          sortOrder: investmentHoldings.sortOrder,
+        })
+        .from(investmentHoldings)
+        .where(eq(investmentHoldings.userId, user.id))
+        .orderBy(asc(investmentHoldings.sortOrder), asc(investmentHoldings.createdAt)),
+      db
+        .select({
+          id: investmentSnapshots.id,
+          monthKey: investmentSnapshots.monthKey,
+          investedCost: investmentSnapshots.investedCost,
+          marketValue: investmentSnapshots.marketValue,
+          dividends: investmentSnapshots.dividends,
+          note: investmentSnapshots.note,
+        })
+        .from(investmentSnapshots)
+        .where(eq(investmentSnapshots.userId, user.id))
+        .orderBy(desc(investmentSnapshots.monthKey)),
+      db
+        .select({
+          id: investmentDcaLogs.id,
+          holdingId: investmentDcaLogs.holdingId,
+          transactionId: investmentDcaLogs.transactionId,
+          executedDate: investmentDcaLogs.executedDate,
+          amountThb: investmentDcaLogs.amountThb,
+          unitsBought: investmentDcaLogs.unitsBought,
+          pricePerUnit: investmentDcaLogs.pricePerUnit,
+          feeThb: investmentDcaLogs.feeThb,
+          note: investmentDcaLogs.note,
+        })
+        .from(investmentDcaLogs)
+        .where(eq(investmentDcaLogs.userId, user.id))
+        .orderBy(desc(investmentDcaLogs.executedDate), desc(investmentDcaLogs.createdAt)),
     ]);
 
+    const hasInvestments =
+      userInvSettingsRows.length > 0 ||
+      userInvHoldings.length > 0 ||
+      userInvSnapshots.length > 0 ||
+      userInvDcaLogs.length > 0;
+
+    const invSettingsRow = userInvSettingsRows[0];
     const bundle = createBackupBundle({
       wallets: userWallets,
       categories: userCategories,
       salarySettings: userSettingsRows[0] ?? null,
       salaryAllocations: userAllocations,
       transactions: userTransactions,
+      ...(hasInvestments
+        ? {
+            investments: {
+              settings: invSettingsRow
+                ? {
+                    targetGoalAmount: invSettingsRow.targetGoalAmount,
+                    startingPrincipal: invSettingsRow.startingPrincipal,
+                    monthlyDca: invSettingsRow.monthlyDca,
+                    expectedAnnualReturnPct: Number(
+                      invSettingsRow.expectedAnnualReturnPct
+                    ),
+                    horizonYears: invSettingsRow.horizonYears,
+                    annualDcaStepUpPct: Number(invSettingsRow.annualDcaStepUpPct),
+                    reinvestDividends: invSettingsRow.reinvestDividends,
+                  }
+                : null,
+              holdings: userInvHoldings.map((h) => ({
+                ...h,
+                targetAllocationPct: Number(h.targetAllocationPct),
+                expectedAnnualReturnPct: Number(h.expectedAnnualReturnPct),
+              })),
+              snapshots: userInvSnapshots,
+              dcaLogs: userInvDcaLogs,
+            },
+          }
+        : {}),
     });
 
     return { ok: true, data: bundle };
@@ -153,6 +256,18 @@ export async function restoreUserBackupAction(
   try {
     await db.transaction(async (tx) => {
       // Delete existing user records in FK-safe order
+      await tx
+        .delete(investmentDcaLogs)
+        .where(eq(investmentDcaLogs.userId, user.id));
+      await tx
+        .delete(investmentSnapshots)
+        .where(eq(investmentSnapshots.userId, user.id));
+      await tx
+        .delete(investmentHoldings)
+        .where(eq(investmentHoldings.userId, user.id));
+      await tx
+        .delete(investmentSettings)
+        .where(eq(investmentSettings.userId, user.id));
       await tx.delete(transactions).where(eq(transactions.userId, user.id));
       await tx
         .delete(salaryAllocations)
@@ -234,6 +349,74 @@ export async function restoreUserBackupAction(
             amount: t.amount,
             transactionDate: t.transactionDate,
             note: t.note,
+          }))
+        );
+      }
+
+      if (bundle.investments?.settings) {
+        const s = bundle.investments.settings;
+        await tx.insert(investmentSettings).values({
+          userId: user.id,
+          targetGoalAmount: s.targetGoalAmount,
+          startingPrincipal: s.startingPrincipal,
+          monthlyDca: s.monthlyDca,
+          expectedAnnualReturnPct: s.expectedAnnualReturnPct.toFixed(2),
+          horizonYears: s.horizonYears,
+          annualDcaStepUpPct: s.annualDcaStepUpPct.toFixed(2),
+          reinvestDividends: s.reinvestDividends,
+        });
+      }
+
+      if (bundle.investments && bundle.investments.holdings.length > 0) {
+        await tx.insert(investmentHoldings).values(
+          bundle.investments.holdings.map((h) => ({
+            id: h.id,
+            userId: user.id,
+            symbol: h.symbol,
+            name: h.name,
+            assetType: h.assetType,
+            targetAllocationPct: h.targetAllocationPct.toFixed(2),
+            expectedAnnualReturnPct: h.expectedAnnualReturnPct.toFixed(2),
+            investedCost: h.investedCost,
+            currentValue: h.currentValue,
+            dividendsReceived: h.dividendsReceived,
+            units: h.units ?? null,
+            currency: h.currency,
+            broker: h.broker,
+            note: h.note,
+            color: h.color,
+            sortOrder: h.sortOrder,
+          }))
+        );
+      }
+
+      if (bundle.investments && bundle.investments.snapshots.length > 0) {
+        await tx.insert(investmentSnapshots).values(
+          bundle.investments.snapshots.map((snap) => ({
+            id: snap.id,
+            userId: user.id,
+            monthKey: snap.monthKey,
+            investedCost: snap.investedCost,
+            marketValue: snap.marketValue,
+            dividends: snap.dividends,
+            note: snap.note,
+          }))
+        );
+      }
+
+      if (bundle.investments && bundle.investments.dcaLogs.length > 0) {
+        await tx.insert(investmentDcaLogs).values(
+          bundle.investments.dcaLogs.map((log) => ({
+            id: log.id,
+            userId: user.id,
+            holdingId: log.holdingId,
+            transactionId: log.transactionId,
+            executedDate: log.executedDate,
+            amountThb: log.amountThb,
+            unitsBought: log.unitsBought,
+            pricePerUnit: log.pricePerUnit,
+            feeThb: log.feeThb,
+            note: log.note,
           }))
         );
       }

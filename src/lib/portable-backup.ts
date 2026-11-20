@@ -2,6 +2,10 @@ import Decimal from "decimal.js";
 import * as z from "zod";
 import type {
   CategoryDTO,
+  InvestmentDcaLogDTO,
+  InvestmentHoldingDTO,
+  InvestmentPlanSettingsDTO,
+  InvestmentSnapshotDTO,
   SalaryAllocationDTO,
   SalarySettingsDTO,
   TransactionDTO,
@@ -9,8 +13,13 @@ import type {
 } from "./types";
 import {
   CATEGORY_TYPES,
+  INVESTMENT_ASSET_TYPES,
+  INVESTMENT_CURRENCIES,
   isoDateSchema,
+  monthKeySchema,
   nonNegativeMoneyStringSchema,
+  optionalNonNegativePriceSchema,
+  optionalNonNegativeUnitsSchema,
   PLAN_ALLOCATION_MODES,
   PLAN_BUCKET_TYPES,
   positiveMoneyStringSchema,
@@ -167,6 +176,86 @@ const backupTransactionSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : null)),
 });
 
+const backupInvestmentSettingsSchema = z.object({
+  targetGoalAmount: nonNegativeMoneyStringSchema,
+  startingPrincipal: nonNegativeMoneyStringSchema,
+  monthlyDca: nonNegativeMoneyStringSchema,
+  expectedAnnualReturnPct: z.coerce.number().min(0).max(50),
+  horizonYears: z.coerce.number().int().min(1).max(50),
+  annualDcaStepUpPct: z.coerce.number().min(0).max(30),
+  reinvestDividends: z.boolean().default(true),
+});
+
+const backupInvestmentHoldingSchema = z.object({
+  id: backupIdSchema,
+  symbol: z.string().trim().min(1).max(30),
+  name: z.string().trim().min(1).max(120),
+  assetType: z.enum(INVESTMENT_ASSET_TYPES),
+  targetAllocationPct: z.coerce.number().min(0).max(100),
+  expectedAnnualReturnPct: z.coerce.number().min(0).max(50),
+  investedCost: nonNegativeMoneyStringSchema.default("0.00"),
+  currentValue: nonNegativeMoneyStringSchema.default("0.00"),
+  dividendsReceived: nonNegativeMoneyStringSchema.default("0.00"),
+  units: optionalNonNegativeUnitsSchema.default(null),
+  currency: z.enum(INVESTMENT_CURRENCIES).default("THB"),
+  broker: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  color: z.string().trim().max(20).default("#0f766e"),
+  sortOrder: z.number().int().default(0),
+});
+
+const backupInvestmentSnapshotSchema = z.object({
+  id: backupIdSchema,
+  monthKey: monthKeySchema,
+  investedCost: nonNegativeMoneyStringSchema.default("0.00"),
+  marketValue: nonNegativeMoneyStringSchema.default("0.00"),
+  dividends: nonNegativeMoneyStringSchema.default("0.00"),
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+});
+
+const backupInvestmentDcaLogSchema = z.object({
+  id: backupIdSchema,
+  holdingId: backupIdSchema,
+  transactionId: nullableBackupIdSchema,
+  executedDate: isoDateSchema,
+  amountThb: positiveMoneyStringSchema,
+  unitsBought: optionalNonNegativeUnitsSchema.default(null),
+  pricePerUnit: optionalNonNegativePriceSchema.default(null),
+  feeThb: nonNegativeMoneyStringSchema.default("0.00"),
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+});
+
+const backupInvestmentsSchema = z.object({
+  settings: backupInvestmentSettingsSchema.nullable().default(null),
+  holdings: z.array(backupInvestmentHoldingSchema).default([]),
+  snapshots: z.array(backupInvestmentSnapshotSchema).default([]),
+  dcaLogs: z.array(backupInvestmentDcaLogSchema).default([]),
+});
+
 export const moneyFlowBackupSchema = z
   .object({
     app: z.literal("MoneyFlow"),
@@ -177,6 +266,7 @@ export const moneyFlowBackupSchema = z
     salarySettings: backupSalarySettingsSchema.nullable().default(null),
     salaryAllocations: z.array(backupAllocationSchema).default([]),
     transactions: z.array(backupTransactionSchema).default([]),
+    investments: backupInvestmentsSchema.optional(),
   })
   .superRefine((bundle, ctx) => {
     const walletIds = new Set<string>();
@@ -282,6 +372,53 @@ export const moneyFlowBackupSchema = z
         }
       }
     }
+
+    if (bundle.investments) {
+      const txIdSet = new Set(bundle.transactions.map((tx) => tx.id));
+      const holdingIdSet = new Set<string>();
+      for (let i = 0; i < bundle.investments.holdings.length; i += 1) {
+        const h = bundle.investments.holdings[i];
+        if (holdingIdSet.has(h.id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["investments", "holdings", i, "id"],
+            message: `พบรหัสสินทรัพย์ลงทุนซ้ำ: ${h.id}`,
+          });
+        }
+        holdingIdSet.add(h.id);
+      }
+
+      const snapMonths = new Set<string>();
+      for (let i = 0; i < bundle.investments.snapshots.length; i += 1) {
+        const s = bundle.investments.snapshots[i];
+        if (snapMonths.has(s.monthKey)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["investments", "snapshots", i, "monthKey"],
+            message: `พบเดือนบันทึกยอดพอร์ตซ้ำ: ${s.monthKey}`,
+          });
+        }
+        snapMonths.add(s.monthKey);
+      }
+
+      for (let i = 0; i < bundle.investments.dcaLogs.length; i += 1) {
+        const log = bundle.investments.dcaLogs[i];
+        if (!holdingIdSet.has(log.holdingId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["investments", "dcaLogs", i, "holdingId"],
+            message: `ประวัติ DCA รายการที่ ${i + 1}: ไม่พบสินทรัพย์ที่อ้างอิง`,
+          });
+        }
+        if (log.transactionId && !txIdSet.has(log.transactionId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["investments", "dcaLogs", i, "transactionId"],
+            message: `ประวัติ DCA รายการที่ ${i + 1}: ไม่พบรายการโอนที่อ้างอิง`,
+          });
+        }
+      }
+    }
   });
 
 export type MoneyFlowBackupBundle = z.infer<typeof moneyFlowBackupSchema>;
@@ -304,6 +441,25 @@ export function createBackupBundle(params: {
       | "note"
     >
   >;
+  investments?: {
+    settings: InvestmentPlanSettingsDTO | null;
+    holdings: InvestmentHoldingDTO[];
+    snapshots: InvestmentSnapshotDTO[];
+    dcaLogs: Array<
+      Pick<
+        InvestmentDcaLogDTO,
+        | "id"
+        | "holdingId"
+        | "transactionId"
+        | "executedDate"
+        | "amountThb"
+        | "unitsBought"
+        | "pricePerUnit"
+        | "feeThb"
+        | "note"
+      >
+    >;
+  };
   exportedAt?: string;
 }): MoneyFlowBackupBundle {
   return moneyFlowBackupSchema.parse({
@@ -359,6 +515,49 @@ export function createBackupBundle(params: {
       transactionDate: t.transactionDate,
       note: t.note,
     })),
+    ...(params.investments
+      ? {
+          investments: {
+            settings: params.investments.settings,
+            holdings: params.investments.holdings.map((h, idx) => ({
+              id: h.id,
+              symbol: h.symbol,
+              name: h.name,
+              assetType: h.assetType,
+              targetAllocationPct: h.targetAllocationPct,
+              expectedAnnualReturnPct: h.expectedAnnualReturnPct,
+              investedCost: h.investedCost,
+              currentValue: h.currentValue,
+              dividendsReceived: h.dividendsReceived,
+              units: h.units ?? null,
+              currency: h.currency ?? "THB",
+              broker: h.broker,
+              note: h.note,
+              color: h.color,
+              sortOrder: h.sortOrder ?? idx,
+            })),
+            snapshots: params.investments.snapshots.map((s) => ({
+              id: s.id,
+              monthKey: s.monthKey,
+              investedCost: s.investedCost,
+              marketValue: s.marketValue,
+              dividends: s.dividends,
+              note: s.note,
+            })),
+            dcaLogs: params.investments.dcaLogs.map((l) => ({
+              id: l.id,
+              holdingId: l.holdingId,
+              transactionId: l.transactionId,
+              executedDate: l.executedDate,
+              amountThb: l.amountThb,
+              unitsBought: l.unitsBought,
+              pricePerUnit: l.pricePerUnit,
+              feeThb: l.feeThb,
+              note: l.note,
+            })),
+          },
+        }
+      : {}),
   });
 }
 
@@ -425,17 +624,50 @@ export function remapBackupBundleIds(
       : null,
   }));
 
-  const transactions = bundle.transactions.map((tx) => ({
-    ...tx,
-    id: crypto.randomUUID(),
-    walletId: walletIdMap.get(tx.walletId) ?? tx.walletId,
-    toWalletId: tx.toWalletId
-      ? (walletIdMap.get(tx.toWalletId) ?? null)
-      : null,
-    categoryId: tx.categoryId
-      ? (categoryIdMap.get(tx.categoryId) ?? null)
-      : null,
-  }));
+  const txIdMap = new Map<string, string>();
+  const transactions = bundle.transactions.map((tx) => {
+    const nextId = crypto.randomUUID();
+    txIdMap.set(tx.id, nextId);
+    return {
+      ...tx,
+      id: nextId,
+      walletId: walletIdMap.get(tx.walletId) ?? tx.walletId,
+      toWalletId: tx.toWalletId
+        ? (walletIdMap.get(tx.toWalletId) ?? null)
+        : null,
+      categoryId: tx.categoryId
+        ? (categoryIdMap.get(tx.categoryId) ?? null)
+        : null,
+    };
+  });
+
+  let investments = bundle.investments;
+  if (bundle.investments) {
+    const holdingIdMap = new Map<string, string>();
+    const holdings = bundle.investments.holdings.map((h) => {
+      const nextId = crypto.randomUUID();
+      holdingIdMap.set(h.id, nextId);
+      return { ...h, id: nextId };
+    });
+    const snapshots = bundle.investments.snapshots.map((s) => ({
+      ...s,
+      id: crypto.randomUUID(),
+    }));
+    const dcaLogs = bundle.investments.dcaLogs.map((l) => ({
+      ...l,
+      id: crypto.randomUUID(),
+      holdingId: holdingIdMap.get(l.holdingId) ?? l.holdingId,
+      transactionId: l.transactionId
+        ? (txIdMap.get(l.transactionId) ?? null)
+        : null,
+    }));
+    investments = {
+      settings: bundle.investments.settings,
+      holdings,
+      snapshots,
+      dcaLogs,
+    };
+  }
 
   return {
     ...bundle,
@@ -444,5 +676,6 @@ export function remapBackupBundleIds(
     salarySettings,
     salaryAllocations,
     transactions,
+    ...(investments ? { investments } : {}),
   };
 }

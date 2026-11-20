@@ -5,6 +5,10 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   categories,
+  investmentDcaLogs,
+  investmentHoldings,
+  investmentSettings,
+  investmentSnapshots,
   salaryAllocations,
   salarySettings,
   transactions,
@@ -25,6 +29,10 @@ import { buildSalaryPlanSummary } from "./salary-plan";
 import type {
   CategoryDTO,
   DashboardAnalytics,
+  InvestmentDcaLogDTO,
+  InvestmentHoldingDTO,
+  InvestmentPlanSettingsDTO,
+  InvestmentSnapshotDTO,
   SalaryAllocationDTO,
   SalaryPlanSummary,
   SalarySettingsDTO,
@@ -397,5 +405,144 @@ export async function getUserPlanPageData(
     settings: salaryConfig.settings,
     allocations: salaryConfig.allocations,
     summary,
+  };
+}
+
+export async function getUserInvestmentPageData(
+  userId: string
+): Promise<{
+  settings: InvestmentPlanSettingsDTO | null;
+  holdings: InvestmentHoldingDTO[];
+  snapshots: InvestmentSnapshotDTO[];
+  dcaLogs: InvestmentDcaLogDTO[];
+  wallets: WalletDTO[];
+  incomeCategories: CategoryDTO[];
+  linkedInvestmentWalletTotal: string;
+  linkedInvestmentWalletCount: number;
+  linkedPlanDcaMonthly: string;
+}> {
+  const { year, month } = getBangkokYearMonth();
+
+  const [
+    planData,
+    userCategories,
+    settingsRows,
+    holdingRows,
+    snapshotRows,
+    dcaLogRows,
+  ] = await Promise.all([
+    getUserPlanPageData(userId, year, month),
+    getUserCategories(userId),
+    db
+      .select({
+        targetGoalAmount: investmentSettings.targetGoalAmount,
+        startingPrincipal: investmentSettings.startingPrincipal,
+        monthlyDca: investmentSettings.monthlyDca,
+        expectedAnnualReturnPct: investmentSettings.expectedAnnualReturnPct,
+        horizonYears: investmentSettings.horizonYears,
+        annualDcaStepUpPct: investmentSettings.annualDcaStepUpPct,
+        reinvestDividends: investmentSettings.reinvestDividends,
+      })
+      .from(investmentSettings)
+      .where(eq(investmentSettings.userId, userId))
+      .limit(1),
+    db
+      .select({
+        id: investmentHoldings.id,
+        symbol: investmentHoldings.symbol,
+        name: investmentHoldings.name,
+        assetType: investmentHoldings.assetType,
+        targetAllocationPct: investmentHoldings.targetAllocationPct,
+        expectedAnnualReturnPct: investmentHoldings.expectedAnnualReturnPct,
+        investedCost: investmentHoldings.investedCost,
+        currentValue: investmentHoldings.currentValue,
+        dividendsReceived: investmentHoldings.dividendsReceived,
+        units: investmentHoldings.units,
+        currency: investmentHoldings.currency,
+        broker: investmentHoldings.broker,
+        note: investmentHoldings.note,
+        color: investmentHoldings.color,
+        sortOrder: investmentHoldings.sortOrder,
+      })
+      .from(investmentHoldings)
+      .where(eq(investmentHoldings.userId, userId))
+      .orderBy(asc(investmentHoldings.sortOrder), asc(investmentHoldings.createdAt)),
+    db
+      .select({
+        id: investmentSnapshots.id,
+        monthKey: investmentSnapshots.monthKey,
+        investedCost: investmentSnapshots.investedCost,
+        marketValue: investmentSnapshots.marketValue,
+        dividends: investmentSnapshots.dividends,
+        note: investmentSnapshots.note,
+      })
+      .from(investmentSnapshots)
+      .where(eq(investmentSnapshots.userId, userId))
+      .orderBy(desc(investmentSnapshots.monthKey)),
+    db
+      .select({
+        id: investmentDcaLogs.id,
+        holdingId: investmentDcaLogs.holdingId,
+        holdingSymbol: investmentHoldings.symbol,
+        holdingName: investmentHoldings.name,
+        transactionId: investmentDcaLogs.transactionId,
+        executedDate: investmentDcaLogs.executedDate,
+        amountThb: investmentDcaLogs.amountThb,
+        unitsBought: investmentDcaLogs.unitsBought,
+        pricePerUnit: investmentDcaLogs.pricePerUnit,
+        feeThb: investmentDcaLogs.feeThb,
+        note: investmentDcaLogs.note,
+      })
+      .from(investmentDcaLogs)
+      .innerJoin(
+        investmentHoldings,
+        eq(investmentDcaLogs.holdingId, investmentHoldings.id)
+      )
+      .where(eq(investmentDcaLogs.userId, userId))
+      .orderBy(desc(investmentDcaLogs.executedDate), desc(investmentDcaLogs.createdAt))
+      .limit(120),
+  ]);
+
+  const investmentWallets = planData.wallets.filter(
+    (w) => !w.isArchived && w.type === "investment"
+  );
+  const linkedInvestmentWalletTotal = formatFixed2(
+    investmentWallets.reduce(
+      (sum, w) => sum.plus(toDecimal(w.currentBalance)),
+      new Decimal(0)
+    )
+  );
+
+  const settingsRow = settingsRows[0];
+  const settings: InvestmentPlanSettingsDTO | null = settingsRow
+    ? {
+        targetGoalAmount: settingsRow.targetGoalAmount,
+        startingPrincipal: settingsRow.startingPrincipal,
+        monthlyDca: settingsRow.monthlyDca,
+        expectedAnnualReturnPct: Number(settingsRow.expectedAnnualReturnPct),
+        horizonYears: settingsRow.horizonYears,
+        annualDcaStepUpPct: Number(settingsRow.annualDcaStepUpPct),
+        reinvestDividends: settingsRow.reinvestDividends,
+      }
+    : null;
+
+  const holdings: InvestmentHoldingDTO[] = holdingRows.map((h) => ({
+    ...h,
+    targetAllocationPct: Number(h.targetAllocationPct),
+    expectedAnnualReturnPct: Number(h.expectedAnnualReturnPct),
+  }));
+
+  return {
+    settings,
+    holdings,
+    snapshots: snapshotRows,
+    dcaLogs: dcaLogRows,
+    wallets: planData.wallets.filter((w) => !w.isArchived),
+    incomeCategories: userCategories.filter(
+      (c) => !c.isArchived && c.type === "income"
+    ),
+    linkedInvestmentWalletTotal,
+    linkedInvestmentWalletCount: investmentWallets.length,
+    linkedPlanDcaMonthly: planData.summary.bucketTotals.dca,
   };
 }

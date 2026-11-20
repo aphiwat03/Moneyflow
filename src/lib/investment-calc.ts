@@ -3,11 +3,15 @@ import { formatFixed2, toChartNumber, toDecimal } from "./decimal";
 import type {
   ComputedInvestmentHolding,
   InvestmentAssetType,
+  InvestmentCurrency,
+  InvestmentDcaLogDTO,
   InvestmentHoldingDTO,
   InvestmentPlanSettingsDTO,
   InvestmentPortfolioSummary,
   InvestmentProjectionPoint,
   InvestmentProjectionSummary,
+  MonthlyDcaChecklistItem,
+  MonthlyDcaChecklistSummary,
 } from "./types";
 
 export const INVESTMENT_ASSET_TYPE_META: Record<
@@ -481,4 +485,186 @@ export function formatMonthsToYearsThai(months: number | null): string {
   if (years === 0) return `${remMonths} เดือน`;
   if (remMonths === 0) return `${years} ปี`;
   return `${years} ปี ${remMonths} เดือน`;
+}
+
+/**
+ * Builds the monthly DCA checklist comparing each holding's planned monthly split
+ * against actual DCA execution logs recorded in `monthKey` (YYYY-MM, Asia/Bangkok).
+ */
+export function buildMonthlyDcaChecklist(
+  holdings: InvestmentHoldingDTO[],
+  settings: InvestmentPlanSettingsDTO,
+  dcaLogs: InvestmentDcaLogDTO[],
+  monthKey: string
+): MonthlyDcaChecklistSummary {
+  const monthlyDcaDec = Decimal.max(0, toDecimal(settings.monthlyDca));
+  const boughtByHolding = new Map<string, { total: Decimal; count: number }>();
+
+  for (const log of dcaLogs) {
+    if (!log.executedDate.startsWith(monthKey)) continue;
+    const prev = boughtByHolding.get(log.holdingId) ?? {
+      total: new Decimal(0),
+      count: 0,
+    };
+    prev.total = prev.total.plus(Decimal.max(0, toDecimal(log.amountThb)));
+    prev.count += 1;
+    boughtByHolding.set(log.holdingId, prev);
+  }
+
+  let totalPlannedDec = new Decimal(0);
+  let totalBoughtDec = new Decimal(0);
+  let completedCount = 0;
+
+  const items: MonthlyDcaChecklistItem[] = holdings.map((holding) => {
+    const plannedDec = monthlyDcaDec
+      .times(Math.max(0, holding.targetAllocationPct))
+      .div(100)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const boughtEntry = boughtByHolding.get(holding.id);
+    const boughtDec = boughtEntry ? boughtEntry.total : new Decimal(0);
+    const executionCount = boughtEntry ? boughtEntry.count : 0;
+    const remainingDec = Decimal.max(0, plannedDec.minus(boughtDec));
+
+    let status: "pending" | "partial" | "done" = "pending";
+    if (boughtDec.gt(0)) {
+      if (plannedDec.lte(0) || boughtDec.gte(plannedDec)) {
+        status = "done";
+      } else {
+        status = "partial";
+      }
+    }
+
+    if (status === "done") {
+      completedCount += 1;
+    }
+
+    totalPlannedDec = totalPlannedDec.plus(plannedDec);
+    totalBoughtDec = totalBoughtDec.plus(boughtDec);
+
+    return {
+      holdingId: holding.id,
+      symbol: holding.symbol,
+      name: holding.name,
+      color: holding.color,
+      assetType: holding.assetType,
+      plannedAmountThb: formatFixed2(plannedDec),
+      boughtAmountThb: formatFixed2(boughtDec),
+      remainingAmountThb: formatFixed2(remainingDec),
+      executionCount,
+      status,
+    };
+  });
+
+  return {
+    monthKey,
+    items,
+    totalPlannedThb: formatFixed2(totalPlannedDec),
+    totalBoughtThb: formatFixed2(totalBoughtDec),
+    completedCount,
+    totalCount: items.length,
+  };
+}
+
+/**
+ * Pure cost-basis + units updater when recording a new DCA buy order.
+ */
+export function applyDcaPurchaseMath(params: {
+  currentInvestedCost: string;
+  currentValue: string;
+  currentUnits?: string | null;
+  amountThb: string;
+  unitsBought?: string | null;
+}): {
+  nextInvestedCost: string;
+  nextCurrentValue: string;
+  nextUnits: string | null;
+} {
+  const buyDec = Decimal.max(0, toDecimal(params.amountThb));
+  const nextCostDec = Decimal.max(0, toDecimal(params.currentInvestedCost)).plus(
+    buyDec
+  );
+  const nextValDec = Decimal.max(0, toDecimal(params.currentValue)).plus(buyDec);
+
+  let nextUnits: string | null = params.currentUnits ?? null;
+  if (params.unitsBought && params.unitsBought.trim().length > 0) {
+    const addedUnits = Decimal.max(0, toDecimal(params.unitsBought));
+    const baseUnits = params.currentUnits
+      ? Decimal.max(0, toDecimal(params.currentUnits))
+      : new Decimal(0);
+    nextUnits = baseUnits.plus(addedUnits).toDecimalPlaces(6).toFixed(6);
+  }
+
+  return {
+    nextInvestedCost: formatFixed2(nextCostDec),
+    nextCurrentValue: formatFixed2(nextValDec),
+    nextUnits,
+  };
+}
+
+/**
+ * Reverses a DCA log's cost & units safely (never drops below zero).
+ */
+export function reverseDcaPurchaseMath(params: {
+  currentInvestedCost: string;
+  currentValue: string;
+  currentUnits?: string | null;
+  amountThb: string;
+  unitsBought?: string | null;
+}): {
+  nextInvestedCost: string;
+  nextCurrentValue: string;
+  nextUnits: string | null;
+} {
+  const buyDec = Decimal.max(0, toDecimal(params.amountThb));
+  const nextCostDec = Decimal.max(
+    0,
+    toDecimal(params.currentInvestedCost).minus(buyDec)
+  );
+  const nextValDec = Decimal.max(
+    0,
+    toDecimal(params.currentValue).minus(buyDec)
+  );
+
+  let nextUnits: string | null = params.currentUnits ?? null;
+  if (
+    params.unitsBought &&
+    params.unitsBought.trim().length > 0 &&
+    params.currentUnits
+  ) {
+    const removedUnits = Decimal.max(0, toDecimal(params.unitsBought));
+    const remainingUnits = Decimal.max(
+      0,
+      toDecimal(params.currentUnits).minus(removedUnits)
+    );
+    nextUnits = remainingUnits.isZero()
+      ? null
+      : remainingUnits.toDecimalPlaces(6).toFixed(6);
+  }
+
+  return {
+    nextInvestedCost: formatFixed2(nextCostDec),
+    nextCurrentValue: formatFixed2(nextValDec),
+    nextUnits,
+  };
+}
+
+/**
+ * Converts holding units × live market price into THB fixed-2 money string.
+ */
+export function computeUnitMarketValueThb(params: {
+  units: string;
+  unitPrice: number | string;
+  currency: InvestmentCurrency;
+  usdThbRate?: number | string | null;
+}): string {
+  const unitsDec = Decimal.max(0, toDecimal(params.units));
+  const priceDec = Decimal.max(0, toDecimal(params.unitPrice));
+  const fxDec =
+    params.currency === "USD"
+      ? Decimal.max(0, toDecimal(params.usdThbRate ?? 1))
+      : new Decimal(1);
+
+  return formatFixed2(
+    unitsDec.times(priceDec).times(fxDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+  );
 }

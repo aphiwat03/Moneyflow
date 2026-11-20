@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDcaPurchaseMath,
   buildInvestmentProjection,
+  buildMonthlyDcaChecklist,
   computeInvestmentPortfolioSummary,
   computeRequiredMonthlyDca,
+  computeUnitMarketValueThb,
   computeWeightedExpectedReturn,
   DEFAULT_INVESTMENT_HOLDINGS,
   DEFAULT_INVESTMENT_SETTINGS,
   formatMonthsToYearsThai,
+  reverseDcaPurchaseMath,
 } from "@/lib/investment-calc";
+import {
+  isSupportedMarketTicker,
+  normalizeMarketSymbol,
+} from "@/lib/investment-prices";
 
 describe("investment-calc", () => {
   it("computes compound growth projection and months to reach 2M target", () => {
@@ -107,5 +115,144 @@ describe("investment-calc", () => {
     expect(formatMonthsToYearsThai(8)).toBe("8 เดือน");
     expect(formatMonthsToYearsThai(24)).toBe("2 ปี");
     expect(formatMonthsToYearsThai(29)).toBe("2 ปี 5 เดือน");
+  });
+
+  it("builds monthly DCA checklist status (pending, partial, done) for target month only", () => {
+    const settings = {
+      ...DEFAULT_INVESTMENT_SETTINGS,
+      monthlyDca: "5000.00",
+    };
+    const holdings = [
+      { ...DEFAULT_INVESTMENT_HOLDINGS[0], id: "h-voo", targetAllocationPct: 60 }, // planned 3000
+      { ...DEFAULT_INVESTMENT_HOLDINGS[1], id: "h-schd", targetAllocationPct: 25 }, // planned 1250
+      { ...DEFAULT_INVESTMENT_HOLDINGS[2], id: "h-gold", targetAllocationPct: 15 }, // planned 750
+    ];
+    const logs = [
+      {
+        id: "l1",
+        holdingId: "h-voo",
+        holdingSymbol: "VOO",
+        holdingName: "Vanguard S&P 500 ETF",
+        transactionId: null,
+        executedDate: "2026-11-05",
+        amountThb: "3000.00",
+        unitsBought: "0.150000",
+        pricePerUnit: null,
+        feeThb: "0.00",
+        note: null,
+      },
+      {
+        id: "l2",
+        holdingId: "h-schd",
+        holdingSymbol: "SCHD",
+        holdingName: "Schwab US Dividend Equity ETF",
+        transactionId: null,
+        executedDate: "2026-11-10",
+        amountThb: "500.00",
+        unitsBought: null,
+        pricePerUnit: null,
+        feeThb: "0.00",
+        note: null,
+      },
+      // Previous month log must be ignored for 2026-11
+      {
+        id: "l3",
+        holdingId: "h-gold",
+        holdingSymbol: "GOLD",
+        holdingName: "Gold",
+        transactionId: null,
+        executedDate: "2026-10-25",
+        amountThb: "750.00",
+        unitsBought: null,
+        pricePerUnit: null,
+        feeThb: "0.00",
+        note: null,
+      },
+    ];
+
+    const checklist = buildMonthlyDcaChecklist(
+      holdings,
+      settings,
+      logs,
+      "2026-11"
+    );
+
+    expect(checklist.totalPlannedThb).toBe("5000.00");
+    expect(checklist.totalBoughtThb).toBe("3500.00");
+    expect(checklist.completedCount).toBe(1);
+    expect(checklist.totalCount).toBe(3);
+    expect(checklist.items[0].status).toBe("done");
+    expect(checklist.items[0].remainingAmountThb).toBe("0.00");
+    expect(checklist.items[1].status).toBe("partial");
+    expect(checklist.items[1].remainingAmountThb).toBe("750.00");
+    expect(checklist.items[2].status).toBe("pending");
+    expect(checklist.items[2].remainingAmountThb).toBe("750.00");
+  });
+
+  it("updates and reverses DCA cost basis and units accurately without negatives", () => {
+    const bought = applyDcaPurchaseMath({
+      currentInvestedCost: "10000.00",
+      currentValue: "11200.00",
+      currentUnits: "1.250000",
+      amountThb: "3000.00",
+      unitsBought: "0.35",
+    });
+    expect(bought).toEqual({
+      nextInvestedCost: "13000.00",
+      nextCurrentValue: "14200.00",
+      nextUnits: "1.600000",
+    });
+
+    const undone = reverseDcaPurchaseMath({
+      currentInvestedCost: bought.nextInvestedCost,
+      currentValue: bought.nextCurrentValue,
+      currentUnits: bought.nextUnits,
+      amountThb: "3000.00",
+      unitsBought: "0.35",
+    });
+    expect(undone).toEqual({
+      nextInvestedCost: "10000.00",
+      nextCurrentValue: "11200.00",
+      nextUnits: "1.250000",
+    });
+
+    const floorZero = reverseDcaPurchaseMath({
+      currentInvestedCost: "100.00",
+      currentValue: "50.00",
+      currentUnits: "0.100000",
+      amountThb: "500.00",
+      unitsBought: "0.50",
+    });
+    expect(floorZero).toEqual({
+      nextInvestedCost: "0.00",
+      nextCurrentValue: "0.00",
+      nextUnits: null,
+    });
+  });
+
+  it("converts USD & THB market unit prices to THB and filters supported tickers", () => {
+    expect(
+      computeUnitMarketValueThb({
+        units: "2.5",
+        unitPrice: 500,
+        currency: "USD",
+        usdThbRate: 34.5,
+      })
+    ).toBe("43125.00");
+
+    expect(
+      computeUnitMarketValueThb({
+        units: "100",
+        unitPrice: 32.25,
+        currency: "THB",
+      })
+    ).toBe("3225.00");
+
+    expect(normalizeMarketSymbol(" voo ")).toBe("VOO");
+    expect(isSupportedMarketTicker("VOO", "etf")).toBe(true);
+    expect(isSupportedMarketTicker("PTT.BK", "stock")).toBe(true);
+    expect(isSupportedMarketTicker("BRK-B", "stock")).toBe(true);
+    expect(isSupportedMarketTicker("SCBS&P500", "mutual_fund")).toBe(false);
+    expect(isSupportedMarketTicker("GOLD", "gold_bond")).toBe(false);
   });
 });
