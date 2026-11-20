@@ -1,10 +1,20 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import Decimal from "decimal.js";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { categories, transactions, wallets } from "@/db/schema";
+import {
+  categories,
+  salarySettings,
+  transactions,
+  wallets,
+} from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import {
+  detectTaxThresholdCrossing,
+  type TaxToastAlert,
+} from "@/lib/thai-tax";
 import type { ActionResult, TransactionType } from "@/lib/types";
 import { transactionSchema } from "@/lib/validations";
 
@@ -74,7 +84,7 @@ async function verifyTransactionOwnership(
 
 export async function createTransactionAction(
   input: TransactionFormInput
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; taxAlert?: TaxToastAlert | null }>> {
   const user = await requireUser();
   const parsed = transactionSchema.safeParse(input);
   if (!parsed.success) {
@@ -105,8 +115,44 @@ export async function createTransactionAction(
       })
       .returning({ id: transactions.id });
 
+    let taxAlert: TaxToastAlert | null = null;
+    if (parsed.data.type === "income") {
+      const txYear = parsed.data.transactionDate.slice(0, 4);
+      const [sumRows, salaryRows] = await Promise.all([
+        db
+          .select({
+            total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`,
+          })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.type, "income"),
+              gte(transactions.transactionDate, `${txYear}-01-01`),
+              lte(transactions.transactionDate, `${txYear}-12-31`)
+            )
+          ),
+        db
+          .select({ monthlySalary: salarySettings.monthlySalary })
+          .from(salarySettings)
+          .where(eq(salarySettings.userId, user.id))
+          .limit(1),
+      ]);
+
+      const nextAnnualIncome = new Decimal(sumRows[0]?.total ?? "0");
+      const prevAnnualIncome = Decimal.max(
+        0,
+        nextAnnualIncome.minus(parsed.data.amount)
+      );
+      taxAlert = detectTaxThresholdCrossing({
+        prevAnnualIncome,
+        nextAnnualIncome,
+        monthlySalary: salaryRows[0]?.monthlySalary,
+      });
+    }
+
     revalidateAllMoneyViews();
-    return { ok: true, data: { id: created.id } };
+    return { ok: true, data: { id: created.id, taxAlert } };
   } catch (error) {
     console.error("createTransactionAction error:", error);
     return { ok: false, error: "ไม่สามารถบันทึกรายการได้" };

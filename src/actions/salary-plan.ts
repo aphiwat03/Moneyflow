@@ -18,6 +18,11 @@ import {
 } from "@/lib/date";
 import { buildSalaryPlanSummary } from "@/lib/salary-plan";
 import { requireUser } from "@/lib/session";
+import {
+  buildSalaryPlanTaxToast,
+  estimateThaiPersonalIncomeTax,
+  type TaxToastAlert,
+} from "@/lib/thai-tax";
 import type {
   ActionResult,
   PlanAllocationMode,
@@ -57,7 +62,7 @@ export interface SalaryAllocationFormInput {
 
 export async function saveSalarySettingsAction(
   input: SalarySettingsFormInput
-): Promise<ActionResult> {
+): Promise<ActionResult<{ taxAlert?: TaxToastAlert }>> {
   const user = await requireUser();
   const parsed = salarySettingsSchema.safeParse(input);
   if (!parsed.success) {
@@ -104,8 +109,20 @@ export async function saveSalarySettingsAction(
         },
       });
 
+    const annualProjected = new Decimal(parsed.data.monthlySalary)
+      .plus(parsed.data.extraIncome)
+      .times(12);
+    const taxAlert = annualProjected.gt(0)
+      ? buildSalaryPlanTaxToast(
+          estimateThaiPersonalIncomeTax({
+            annualIncome: annualProjected,
+            monthlySalary: parsed.data.monthlySalary,
+          })
+        )
+      : undefined;
+
     revalidatePlanAndMoneyViews();
-    return { ok: true };
+    return { ok: true, data: { taxAlert } };
   } catch (error) {
     console.error("saveSalarySettingsAction error:", error);
     return { ok: false, error: "ไม่สามารถบันทึกการตั้งค่าเงินเดือนได้" };

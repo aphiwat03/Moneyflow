@@ -51,6 +51,11 @@ import type {
   WalletDTO,
   WalletType,
 } from "@/lib/types";
+import {
+  buildSalaryPlanTaxToast,
+  detectTaxThresholdCrossing,
+  estimateThaiPersonalIncomeTax,
+} from "@/lib/thai-tax";
 import { cn } from "@/lib/utils";
 import {
   categorySchema,
@@ -272,12 +277,30 @@ export function DemoWorkspace({
       note: parsed.data.note,
     };
 
+    let taxAlert = null;
+    if (!editingId && parsed.data.type === "income") {
+      const txYear = parsed.data.transactionDate.slice(0, 4);
+      const prevAnnualIncome = rawTransactions
+        .filter(
+          (t) => t.type === "income" && t.transactionDate.startsWith(`${txYear}-`)
+        )
+        .reduce((sum, t) => sum.plus(toDecimal(t.amount)), toDecimal("0"));
+      const nextAnnualIncome = prevAnnualIncome.plus(
+        toDecimal(parsed.data.amount)
+      );
+      taxAlert = detectTaxThresholdCrossing({
+        prevAnnualIncome,
+        nextAnnualIncome,
+        monthlySalary: salarySettings.monthlySalary,
+      });
+    }
+
     setRawTransactions((prev) =>
       editingId
         ? prev.map((t) => (t.id === editingId ? nextTx : t))
         : [nextTx, ...prev]
     );
-    return { ok: true };
+    return { ok: true, data: { id: nextTx.id, taxAlert } };
   }
 
   async function handleDeleteTransaction(
@@ -550,7 +573,18 @@ export function DemoWorkspace({
       payday: parsed.data.payday,
       salaryWalletId: parsed.data.salaryWalletId,
     });
-    return { ok: true };
+    const annualProjected = toDecimal(parsed.data.monthlySalary)
+      .plus(toDecimal(parsed.data.extraIncome))
+      .times(12);
+    const taxAlert = annualProjected.gt(0)
+      ? buildSalaryPlanTaxToast(
+          estimateThaiPersonalIncomeTax({
+            annualIncome: annualProjected,
+            monthlySalary: parsed.data.monthlySalary,
+          })
+        )
+      : undefined;
+    return { ok: true, data: { taxAlert } };
   }
 
   async function handleSaveDemoSalaryAllocation(
