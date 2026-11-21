@@ -261,6 +261,10 @@ export function DemoWorkspace({
       return { ok: false, error: "กรุณาเลือกหมวดหมู่ที่ตรงกับประเภท" };
     }
 
+    const existingTx = editingId
+      ? rawTransactions.find((t) => t.id === editingId)
+      : undefined;
+
     const nextTx: TransactionDTO = {
       id: editingId ?? crypto.randomUUID(),
       type: parsed.data.type,
@@ -274,7 +278,12 @@ export function DemoWorkspace({
       categoryColor: cat?.color ?? null,
       amount: parsed.data.amount,
       transactionDate: parsed.data.transactionDate,
+      transactionTime: parsed.data.transactionTime,
+      createdAt: existingTx?.createdAt ?? new Date().toISOString(),
       note: parsed.data.note,
+      recipientName: parsed.data.recipientName,
+      recipientBank: parsed.data.recipientBank,
+      recipientAccount: parsed.data.recipientAccount,
     };
 
     let taxAlert = null;
@@ -797,6 +806,9 @@ export function DemoWorkspace({
             amount: t.amount,
             transactionDate: t.transactionDate,
             note: t.note,
+            recipientName: t.recipientName ?? null,
+            recipientBank: t.recipientBank ?? null,
+            recipientAccount: t.recipientAccount ?? null,
           };
         }
       );

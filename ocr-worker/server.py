@@ -1,12 +1,14 @@
 """Local CPU-only HTTP microservice wrapping OpenThai2.1-OCR-Text-20261118 (v2.1.4).
 
-Processes slip images strictly in memory and binds only to 127.0.0.1.
+Processes slip images strictly in memory and binds only to 127.0.0.1 by default.
+When OCR_SHARED_SECRET is set, requires a matching X-OCR-API-KEY header on /ocr.
 """
 
 from __future__ import annotations
 
 from email.parser import BytesParser
 from email.policy import default as email_policy
+import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
@@ -19,10 +21,13 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB (aligned with Vercel 4.5 MB body limit)
+Image.MAX_IMAGE_PIXELS = 20_000_000  # 20 MP cap against decompression bombs
+
 HOST = os.environ.get("OCR_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OCR_PORT", "8001"))
 THREADS = max(1, int(os.environ.get("OCR_THREADS", "1")))
+OCR_SHARED_SECRET = os.environ.get("OCR_SHARED_SECRET", "").strip()
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "model"
 
@@ -115,6 +120,14 @@ def make_handler(runtime: _OcrRuntime):
             self.end_headers()
             self.wfile.write(encoded)
 
+        def _is_authorized(self) -> bool:
+            if not OCR_SHARED_SECRET:
+                return True
+            provided = (self.headers.get("X-OCR-API-KEY") or "").strip()
+            if not provided:
+                return False
+            return hmac.compare_digest(provided, OCR_SHARED_SECRET)
+
         def do_GET(self) -> None:
             if self.path.split("?", 1)[0] == "/health":
                 self._send_json(
@@ -123,8 +136,8 @@ def make_handler(runtime: _OcrRuntime):
                         "status": "ok",
                         "model": "OpenThai2.1-OCR-Text-20261118",
                         "revision": "v2.1.4",
-                        "threads": THREADS,
                         "ready": True,
+                        "authRequired": bool(OCR_SHARED_SECRET),
                     },
                 )
                 return
@@ -133,6 +146,10 @@ def make_handler(runtime: _OcrRuntime):
         def do_POST(self) -> None:
             if self.path.split("?", 1)[0] != "/ocr":
                 self._send_json(404, {"error": "Not found"})
+                return
+
+            if not self._is_authorized():
+                self._send_json(401, {"error": "Unauthorized"})
                 return
 
             try:
@@ -145,7 +162,7 @@ def make_handler(runtime: _OcrRuntime):
                 self._send_json(400, {"error": "Empty request body"})
                 return
             if content_length > MAX_IMAGE_BYTES + 65536:
-                self._send_json(413, {"error": "Payload exceeds 5 MB limit"})
+                self._send_json(413, {"error": "Payload exceeds 4 MB limit"})
                 return
 
             raw_body = self.rfile.read(content_length)
@@ -153,21 +170,26 @@ def make_handler(runtime: _OcrRuntime):
 
             try:
                 image_bytes = _extract_image_bytes(content_type, raw_body)
-            except ValueError as exc:
-                self._send_json(400, {"error": str(exc)})
+            except ValueError:
+                self._send_json(400, {"error": "Invalid multipart image payload"})
                 return
 
             if len(image_bytes) == 0:
                 self._send_json(400, {"error": "Empty image payload"})
                 return
             if len(image_bytes) > MAX_IMAGE_BYTES:
-                self._send_json(413, {"error": "Image exceeds 5 MB limit"})
+                self._send_json(413, {"error": "Image exceeds 4 MB limit"})
                 return
 
             try:
                 response = runtime.recognize(image_bytes)
+            except Image.DecompressionBombError:
+                sys.stderr.write("[ocr-worker] Rejected oversized pixel dimensions\n")
+                self._send_json(413, {"error": "Image dimensions exceed safety limit"})
+                return
             except Exception as exc:  # noqa: BLE001
-                self._send_json(422, {"error": f"Failed to decode or read slip image: {exc}"})
+                sys.stderr.write(f"[ocr-worker] OCR processing error: {type(exc).__name__}\n")
+                self._send_json(422, {"error": "Failed to decode or read slip image"})
                 return
 
             self._send_json(200, response)
@@ -179,7 +201,10 @@ def main() -> int:
     print(f"[ocr-worker] Loading OpenThai2.1-OCR-Text-20261118 v2.1.4 from {MODEL_DIR} ...")
     runtime = _OcrRuntime()
     server = ThreadingHTTPServer((HOST, PORT), make_handler(runtime))
-    print(f"[ocr-worker] Listening on http://{HOST}:{PORT} (threads={THREADS})")
+    auth_mode = "enabled" if OCR_SHARED_SECRET else "disabled (local-only)"
+    print(
+        f"[ocr-worker] Listening on http://{HOST}:{PORT} (threads={THREADS}, auth={auth_mode})"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

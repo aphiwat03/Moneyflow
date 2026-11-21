@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
 import { isGoogleAuthEnabled } from "@/auth.config";
 import { RegisterForm } from "@/components/auth/auth-forms";
+import { getRegistrationUiMode } from "@/lib/auth-policy";
 
 export const metadata: Metadata = {
   title: "สมัครใช้งาน",
 };
 
 export default function RegisterPage() {
+  const registrationMode = getRegistrationUiMode();
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/30 px-4 py-10">
-      <RegisterForm googleEnabled={isGoogleAuthEnabled} />
+      <RegisterForm
+        googleEnabled={isGoogleAuthEnabled}
+        registrationMode={registrationMode}
+      />
     </main>
   );
 }

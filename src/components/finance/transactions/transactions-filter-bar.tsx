@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarDays, List, RotateCcw, Search } from "lucide-react";
+import { CalendarDays, List, RotateCcw, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AppDatePicker } from "@/components/ui/date-picker";
 import { AppSelect } from "@/components/ui/select";
 import type {
   CategoryDTO,
@@ -17,13 +18,13 @@ interface TransactionsFilterBarProps {
   filters: TransactionFilterParams;
   wallets: WalletDTO[];
   categories: CategoryDTO[];
-  viewMode: "list" | "daily";
+  viewMode: "list" | "daily" | "recipients";
   filteredCount: number;
   onUpdateFilters: (
     updater: (prev: TransactionFilterParams) => TransactionFilterParams
   ) => void;
   onResetFilters: () => void;
-  onChangeViewMode: (mode: "list" | "daily") => void;
+  onChangeViewMode: (mode: "list" | "daily" | "recipients") => void;
 }
 
 export function TransactionsFilterBar({
@@ -44,7 +45,7 @@ export function TransactionsFilterBar({
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="ค้นหาหมายเหตุ, หมวดหมู่, กระเป๋า..."
+              placeholder="ค้นหาหมายเหตุ, ผู้รับโอน, หมวดหมู่, กระเป๋า..."
               value={filters.q ?? ""}
               onChange={(e) =>
                 onUpdateFilters((f) => ({ ...f, q: e.target.value }))
@@ -118,24 +119,24 @@ export function TransactionsFilterBar({
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <span className="text-xs text-muted-foreground">ช่วงวันที่:</span>
             <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:flex sm:w-auto sm:items-center sm:gap-2">
-              <Input
-                type="date"
-                aria-label="ตั้งแต่วันที่"
+              <AppDatePicker
                 value={filters.startDate ?? ""}
-                onChange={(e) =>
-                  onUpdateFilters((f) => ({ ...f, startDate: e.target.value }))
+                onChange={(val) =>
+                  onUpdateFilters((f) => ({ ...f, startDate: val }))
                 }
-                className="h-10 w-full px-2 text-base sm:w-auto lg:h-8 lg:px-2.5 lg:text-xs"
+                placeholder="ตั้งแต่วันที่"
+                allowClear
+                className="w-full sm:w-40"
               />
               <span className="text-xs text-muted-foreground">ถึง</span>
-              <Input
-                type="date"
-                aria-label="ถึงวันที่"
+              <AppDatePicker
                 value={filters.endDate ?? ""}
-                onChange={(e) =>
-                  onUpdateFilters((f) => ({ ...f, endDate: e.target.value }))
+                onChange={(val) =>
+                  onUpdateFilters((f) => ({ ...f, endDate: val }))
                 }
-                className="h-10 w-full px-2 text-base sm:w-auto lg:h-8 lg:px-2.5 lg:text-xs"
+                placeholder="ถึงวันที่"
+                allowClear
+                className="w-full sm:w-40"
               />
             </div>
             <Button
@@ -151,35 +152,48 @@ export function TransactionsFilterBar({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+            <div className="inline-flex flex-wrap rounded-lg border bg-muted/40 p-0.5">
               <button
                 type="button"
                 onClick={() => onChangeViewMode("daily")}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
                   viewMode === "daily"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <CalendarDays className="h-3.5 w-3.5" />
+                <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                 <span>จัดกลุ่มรายวัน</span>
               </button>
               <button
                 type="button"
                 onClick={() => onChangeViewMode("list")}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
                   viewMode === "list"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="h-3.5 w-3.5 shrink-0" />
                 <span>ตารางรวม</span>
               </button>
+              <button
+                type="button"
+                onClick={() => onChangeViewMode("recipients")}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
+                  viewMode === "recipients"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Users className="h-3.5 w-3.5 shrink-0" />
+                <span>ผู้รับโอน</span>
+              </button>
             </div>
-            <span className="text-muted-foreground">
+            <span className="whitespace-nowrap text-muted-foreground">
               พบ <strong>{filteredCount}</strong> รายการ
             </span>
           </div>

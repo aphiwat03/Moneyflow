@@ -26,6 +26,7 @@ import { TransactionFormDialog } from "./transaction-form-dialog";
 import { CsvImportDialog } from "./transactions/csv-import-dialog";
 import { TransactionsFilterBar } from "./transactions/transactions-filter-bar";
 import { TransactionsListSection } from "./transactions/transactions-list-section";
+import { TransactionsRecipientsSection } from "./transactions/transactions-recipients-section";
 
 interface TransactionsViewProps {
   transactions: TransactionDTO[];
@@ -65,7 +66,9 @@ export function TransactionsView({
     endDate: "",
   });
 
-  const [viewMode, setViewMode] = useState<"list" | "daily">("daily");
+  const [viewMode, setViewMode] = useState<"list" | "daily" | "recipients">(
+    "daily"
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -225,26 +228,37 @@ export function TransactionsView({
         onChangeViewMode={setViewMode}
       />
 
-      {/* Transactions List / Daily View / Pagination */}
-      <TransactionsListSection
-        filteredCount={filtered.length}
-        paginatedRows={paginatedRows}
-        viewMode={viewMode}
-        todayIso={todayIso}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        onChangePage={setPage}
-        onChangePageSize={(nextSize) => {
-          setPageSize(nextSize);
-          setPage(1);
-        }}
-        onEditTransaction={(tx) => {
-          setEditingTx(tx);
-          setFormOpen(true);
-        }}
-        onDeleteTransaction={(tx) => setDeletingTx(tx)}
-      />
+      {/* Transactions List / Daily View / Recipients Leaderboard */}
+      {viewMode === "recipients" ? (
+        <TransactionsRecipientsSection
+          transactions={filtered}
+          onEditTransaction={(tx) => {
+            setEditingTx(tx);
+            setFormOpen(true);
+          }}
+          onDeleteTransaction={(tx) => setDeletingTx(tx)}
+        />
+      ) : (
+        <TransactionsListSection
+          filteredCount={filtered.length}
+          paginatedRows={paginatedRows}
+          viewMode={viewMode}
+          todayIso={todayIso}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onChangePage={setPage}
+          onChangePageSize={(nextSize) => {
+            setPageSize(nextSize);
+            setPage(1);
+          }}
+          onEditTransaction={(tx) => {
+            setEditingTx(tx);
+            setFormOpen(true);
+          }}
+          onDeleteTransaction={(tx) => setDeletingTx(tx)}
+        />
+      )}
 
       {/* CSV Import Dialog */}
       <CsvImportDialog

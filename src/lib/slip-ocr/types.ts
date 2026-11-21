@@ -15,8 +15,12 @@ export interface SlipOcrScanResponse {
   rawText: string;
   amount: string | null;
   transactionDate: string | null;
+  transactionTime: string | null;
   suggestedNote: string | null;
   bankHint: string | null;
+  recipientName: string | null;
+  recipientBank: string | null;
+  recipientAccount: string | null;
   confidence: number;
   warnings: string[];
 }

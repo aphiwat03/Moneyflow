@@ -111,6 +111,9 @@ export async function exportUserBackupAction(): Promise<
           amount: transactions.amount,
           transactionDate: transactions.transactionDate,
           note: transactions.note,
+          recipientName: transactions.recipientName,
+          recipientBank: transactions.recipientBank,
+          recipientAccount: transactions.recipientAccount,
         })
         .from(transactions)
         .where(eq(transactions.userId, user.id))
@@ -349,6 +352,9 @@ export async function restoreUserBackupAction(
             amount: t.amount,
             transactionDate: t.transactionDate,
             note: t.note,
+            recipientName: t.recipientName ?? null,
+            recipientBank: t.recipientBank ?? null,
+            recipientAccount: t.recipientAccount ?? null,
           }))
         );
       }

@@ -99,7 +99,14 @@ export function DbManageClient({
       }}
       onChangePassword={async (input) => {
         const res = await changePasswordAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) {
+          if (res.data?.signedOut) {
+            router.replace("/login?reason=password_changed");
+            router.refresh();
+          } else {
+            router.refresh();
+          }
+        }
         return res;
       }}
       onExportFullBackup={() => exportUserBackupAction()}

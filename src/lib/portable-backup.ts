@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import * as z from "zod";
+import { maskAccountNumber } from "./recipient-summary";
 import type {
   CategoryDTO,
   InvestmentDcaLogDTO,
@@ -174,6 +175,27 @@ const backupTransactionSchema = z.object({
     .optional()
     .nullable()
     .transform((v) => (v && v.length > 0 ? v : null)),
+  recipientName: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  recipientBank: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  recipientAccount: z
+    .string()
+    .trim()
+    .max(64)
+    .optional()
+    .nullable()
+    .transform((v) => maskAccountNumber(v)),
 });
 
 const backupInvestmentSettingsSchema = z.object({
@@ -251,9 +273,9 @@ const backupInvestmentDcaLogSchema = z.object({
 
 const backupInvestmentsSchema = z.object({
   settings: backupInvestmentSettingsSchema.nullable().default(null),
-  holdings: z.array(backupInvestmentHoldingSchema).default([]),
-  snapshots: z.array(backupInvestmentSnapshotSchema).default([]),
-  dcaLogs: z.array(backupInvestmentDcaLogSchema).default([]),
+  holdings: z.array(backupInvestmentHoldingSchema).max(100, "สินทรัพย์ลงทุนต้องไม่เกิน 100 รายการ").default([]),
+  snapshots: z.array(backupInvestmentSnapshotSchema).max(360, "บันทึกยอดพอร์ตต้องไม่เกิน 360 เดือน").default([]),
+  dcaLogs: z.array(backupInvestmentDcaLogSchema).max(5_000, "ประวัติซื้อ DCA ต้องไม่เกิน 5,000 รายการ").default([]),
 });
 
 export const moneyFlowBackupSchema = z
@@ -261,11 +283,23 @@ export const moneyFlowBackupSchema = z
     app: z.literal("MoneyFlow"),
     version: z.literal(1),
     exportedAt: z.string().min(1),
-    wallets: z.array(backupWalletSchema).min(1, "ไฟล์สำรองต้องมีกระเป๋าเงินอย่างน้อย 1 รายการ"),
-    categories: z.array(backupCategorySchema).min(1, "ไฟล์สำรองต้องมีหมวดหมู่อย่างน้อย 1 รายการ"),
+    wallets: z
+      .array(backupWalletSchema)
+      .min(1, "ไฟล์สำรองต้องมีกระเป๋าเงินอย่างน้อย 1 รายการ")
+      .max(100, "ไฟล์สำรองต้องมีกระเป๋าเงินไม่เกิน 100 รายการ"),
+    categories: z
+      .array(backupCategorySchema)
+      .min(1, "ไฟล์สำรองต้องมีหมวดหมู่อย่างน้อย 1 รายการ")
+      .max(200, "ไฟล์สำรองต้องมีหมวดหมู่ไม่เกิน 200 รายการ"),
     salarySettings: backupSalarySettingsSchema.nullable().default(null),
-    salaryAllocations: z.array(backupAllocationSchema).default([]),
-    transactions: z.array(backupTransactionSchema).default([]),
+    salaryAllocations: z
+      .array(backupAllocationSchema)
+      .max(100, "แผนจัดสรรต้องไม่เกิน 100 รายการ")
+      .default([]),
+    transactions: z
+      .array(backupTransactionSchema)
+      .max(20_000, "รายการธุรกรรมในไฟล์สำรองต้องไม่เกิน 20,000 รายการ")
+      .default([]),
     investments: backupInvestmentsSchema.optional(),
   })
   .superRefine((bundle, ctx) => {
@@ -439,6 +473,9 @@ export function createBackupBundle(params: {
       | "amount"
       | "transactionDate"
       | "note"
+      | "recipientName"
+      | "recipientBank"
+      | "recipientAccount"
     >
   >;
   investments?: {
@@ -514,6 +551,9 @@ export function createBackupBundle(params: {
       amount: t.amount,
       transactionDate: t.transactionDate,
       note: t.note,
+      recipientName: t.recipientName ?? null,
+      recipientBank: t.recipientBank ?? null,
+      recipientAccount: maskAccountNumber(t.recipientAccount),
     })),
     ...(params.investments
       ? {

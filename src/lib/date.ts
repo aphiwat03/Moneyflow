@@ -174,3 +174,78 @@ export function formatIsoDateForDisplay(
     day: "numeric",
   }).format(utcDate);
 }
+
+/**
+ * Returns current time in Asia/Bangkok timezone as HH:mm (24-hour).
+ */
+export function getBangkokCurrentTime(now: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BANGKOK_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hour === "24" ? "00" : hour}:${minute}`;
+}
+
+export function isValidTime24(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+export function formatTimestampToBangkokTime(
+  value: Date | string | null | undefined
+): string | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return getBangkokCurrentTime(parsed);
+}
+
+export function getTransactionDisplayTime(tx: {
+  transactionTime?: string | null;
+  createdAt?: string | null;
+}): string | null {
+  if (tx.transactionTime && isValidTime24(tx.transactionTime)) {
+    return tx.transactionTime;
+  }
+  return formatTimestampToBangkokTime(tx.createdAt);
+}
+
+export function formatTransactionDateTimeDisplay(
+  tx: {
+    transactionDate: string;
+    transactionTime?: string | null;
+    createdAt?: string | null;
+  },
+  locale: string = "th-TH"
+): string {
+  const dateLabel = formatIsoDateForDisplay(tx.transactionDate, locale);
+  const timeLabel = getTransactionDisplayTime(tx);
+  return timeLabel ? `${dateLabel} • ${timeLabel} น.` : dateLabel;
+}
+
+export function compareTransactionsByDateTimeDesc(
+  a: {
+    transactionDate: string;
+    transactionTime?: string | null;
+    createdAt?: string | null;
+  },
+  b: {
+    transactionDate: string;
+    transactionTime?: string | null;
+    createdAt?: string | null;
+  }
+): number {
+  const dateCmp = b.transactionDate.localeCompare(a.transactionDate);
+  if (dateCmp !== 0) return dateCmp;
+
+  const timeA = getTransactionDisplayTime(a) ?? "";
+  const timeB = getTransactionDisplayTime(b) ?? "";
+  const timeCmp = timeB.localeCompare(timeA);
+  if (timeCmp !== 0) return timeCmp;
+
+  return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+}

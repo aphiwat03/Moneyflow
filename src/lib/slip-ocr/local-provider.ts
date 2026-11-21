@@ -36,12 +36,18 @@ export const localOpenThaiOcrProvider: SlipOcrProvider = {
       : timeoutSignal;
 
     let response: Response;
+    const sharedSecret = process.env.OCR_SHARED_SECRET?.trim();
+    const requestHeaders: Record<string, string> = {
+      "Content-Type": mimeType || "application/octet-stream",
+    };
+    if (sharedSecret) {
+      requestHeaders["X-OCR-API-KEY"] = sharedSecret;
+    }
+
     try {
       response = await fetch(`${baseUrl}/ocr`, {
         method: "POST",
-        headers: {
-          "Content-Type": mimeType || "application/octet-stream",
-        },
+        headers: requestHeaders,
         body: new Uint8Array(buffer),
         signal: combinedSignal,
         cache: "no-store",
@@ -72,8 +78,22 @@ export const localOpenThaiOcrProvider: SlipOcrProvider = {
     }
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new SlipOcrProviderError(
+          "การยืนยันตัวตนกับระบบอ่านสลิปไม่ถูกต้อง กรุณาตรวจสอบการตั้งค่าเซิร์ฟเวอร์",
+          502
+        );
+      }
+      if (response.status === 413) {
+        throw new SlipOcrProviderError(
+          "ขนาดหรือความละเอียดของรูปสลิปเกินขีดจำกัดที่ระบบรองรับ",
+          413
+        );
+      }
       throw new SlipOcrProviderError(
-        payload.error || "Local OCR Worker ไม่สามารถอ่านรูปสลิปนี้ได้",
+        response.status >= 400 && response.status < 500
+          ? "ไม่สามารถถอดข้อความจากรูปสลิปนี้ได้ กรุณาลองใช้รูปที่ชัดเจนขึ้น"
+          : "ระบบอ่านสลิปขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง",
         response.status >= 400 && response.status < 500 ? 422 : 502
       );
     }
@@ -90,8 +110,12 @@ export const localOpenThaiOcrProvider: SlipOcrProvider = {
       rawText,
       amount: parsed.amount,
       transactionDate: parsed.transactionDate,
+      transactionTime: parsed.transactionTime,
       suggestedNote: parsed.suggestedNote,
       bankHint: parsed.bankHint,
+      recipientName: parsed.recipientName,
+      recipientBank: parsed.recipientBank,
+      recipientAccount: parsed.recipientAccount,
       confidence: parsed.confidence,
       warnings: parsed.warnings,
     };

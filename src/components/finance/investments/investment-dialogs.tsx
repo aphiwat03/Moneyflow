@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AppDatePicker, AppMonthPicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { AppSelect } from "@/components/ui/select";
 import { toDecimal } from "@/lib/decimal";
@@ -546,12 +547,10 @@ function SnapshotFormBody({
 
       <div className="space-y-1.5">
         <Label htmlFor="s-month">เดือนที่บันทึก</Label>
-        <Input
+        <AppMonthPicker
           id="s-month"
-          type="month"
           value={sMonthKey}
-          onChange={(e) => setSMonthKey(e.target.value)}
-          required
+          onChange={setSMonthKey}
         />
       </div>
 
@@ -780,12 +779,10 @@ function DcaFormBody({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="d-date">วันที่ซื้อ (เวลาไทย)</Label>
-          <Input
+          <AppDatePicker
             id="d-date"
-            type="date"
             value={dDate}
-            onChange={(e) => setDDate(e.target.value)}
-            required
+            onChange={setDDate}
           />
         </div>
         <div className="space-y-1.5">
@@ -1061,12 +1058,10 @@ function DividendFormBody({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="v-date">วันที่รับปันผล</Label>
-          <Input
+          <AppDatePicker
             id="v-date"
-            type="date"
             value={vDate}
-            onChange={(e) => setVDate(e.target.value)}
-            required
+            onChange={setVDate}
           />
         </div>
         <div className="space-y-1.5">

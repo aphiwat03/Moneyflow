@@ -32,7 +32,11 @@ export interface TransactionFormInput {
   categoryId?: string | null;
   amount: string;
   transactionDate: string;
+  transactionTime?: string | null;
   note?: string | null;
+  recipientName?: string | null;
+  recipientBank?: string | null;
+  recipientAccount?: string | null;
 }
 
 async function verifyTransactionOwnership(
@@ -111,7 +115,11 @@ export async function createTransactionAction(
         categoryId: parsed.data.categoryId,
         amount: parsed.data.amount,
         transactionDate: parsed.data.transactionDate,
+        transactionTime: parsed.data.transactionTime,
         note: parsed.data.note,
+        recipientName: parsed.data.recipientName,
+        recipientBank: parsed.data.recipientBank,
+        recipientAccount: parsed.data.recipientAccount,
       })
       .returning({ id: transactions.id });
 
@@ -188,7 +196,11 @@ export async function updateTransactionAction(
         categoryId: parsed.data.categoryId,
         amount: parsed.data.amount,
         transactionDate: parsed.data.transactionDate,
+        transactionTime: parsed.data.transactionTime,
         note: parsed.data.note,
+        recipientName: parsed.data.recipientName,
+        recipientBank: parsed.data.recipientBank,
+        recipientAccount: parsed.data.recipientAccount,
       })
       .where(
         and(eq(transactions.id, transactionId), eq(transactions.userId, user.id))
@@ -307,6 +319,9 @@ export async function bulkImportTransactionsAction(
         amount: d.amount,
         transactionDate: d.transactionDate,
         note: d.note,
+        recipientName: d.recipientName,
+        recipientBank: d.recipientBank,
+        recipientAccount: d.recipientAccount,
       });
     }
 

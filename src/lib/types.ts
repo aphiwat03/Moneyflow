@@ -57,7 +57,12 @@ export interface TransactionDTO {
   categoryColor: string | null;
   amount: string;
   transactionDate: string;
+  transactionTime?: string | null;
+  createdAt?: string | null;
   note: string | null;
+  recipientName?: string | null;
+  recipientBank?: string | null;
+  recipientAccount?: string | null;
 }
 
 export interface TransactionFilterParams {
@@ -67,6 +72,7 @@ export interface TransactionFilterParams {
   categoryId?: string;
   startDate?: string;
   endDate?: string;
+  limit?: number;
 }
 
 export interface MonthlyChartPoint {

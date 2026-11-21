@@ -10,7 +10,11 @@ import {
   fetchUsdThbRate,
   isSupportedMarketTicker,
 } from "@/lib/investment-prices";
+import { checkMemoryRateLimit } from "@/lib/rate-limit";
 import { getOptionalUser } from "@/lib/session";
+
+const REFRESH_PRICES_RATE_LIMIT = 2;
+const REFRESH_PRICES_WINDOW_MS = 30 * 1000; // 30 seconds per user
 
 export async function POST() {
   const user = await getOptionalUser();
@@ -18,6 +22,24 @@ export async function POST() {
     return NextResponse.json(
       { error: "กรุณาเข้าสู่ระบบก่อนอัปเดตราคาตลาด" },
       { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const rate = checkMemoryRateLimit({
+    key: `refresh-prices:user:${user.id}`,
+    limit: REFRESH_PRICES_RATE_LIMIT,
+    windowMs: REFRESH_PRICES_WINDOW_MS,
+  });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "เพิ่งอัปเดตราคาตลาดไปเมื่อสักครู่ กรุณารอสักครู่แล้วลองใหม่อีกครั้ง" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": String(rate.retryAfterSec),
+        },
+      }
     );
   }
 

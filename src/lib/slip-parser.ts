@@ -1,5 +1,6 @@
-import { isValidIsoCalendarDate } from "@/lib/date";
+import { isValidIsoCalendarDate, isValidTime24 } from "@/lib/date";
 import { toDecimal } from "@/lib/decimal";
+import { maskAccountNumber } from "@/lib/recipient-summary";
 import type { WalletType } from "@/lib/types";
 
 export interface OcrLineItem {
@@ -12,8 +13,12 @@ export interface OcrLineItem {
 export interface ParsedSlipResult {
   amount: string | null;
   transactionDate: string | null;
+  transactionTime: string | null;
   suggestedNote: string | null;
   bankHint: string | null;
+  recipientName: string | null;
+  recipientBank: string | null;
+  recipientAccount: string | null;
   confidence: number;
   warnings: string[];
 }
@@ -63,14 +68,22 @@ const EN_MONTH_MAP: Record<string, number> = {
 };
 
 const BANK_MATCHERS: Array<[RegExp, string]> = [
-  [/k\s*plus|กสิกรไทย|kasikorn/i, "K PLUS"],
+  [/k\s*plus|กสิกรไทย|kasikorn|\bkbank\b/i, "K PLUS"],
   [/\bscb\b|ไทยพาณิชย์|scb\s*easy/i, "SCB"],
-  [/krungthai|กรุงไทย|krungthai\s*next/i, "Krungthai"],
+  [/krungthai|กรุงไทย|krungthai\s*next|\bktb\b/i, "Krungthai"],
   [/bangkok\s*bank|ธนาคารกรุงเทพ|\bbbl\b|bualuang/i, "BBL"],
-  [/krungsri|กรุงศรี|\bbay\b|kma/i, "Krungsri"],
+  [/krungsri|กรุงศรี|\bbay\b|\bkma\b/i, "Krungsri"],
   [/\bttb\b|ทหารไทยธนชาต/i, "ttb"],
   [/ออมสิน|\bmymo\b|\bgsb\b/i, "GSB"],
   [/พร้อมเพย์|prompt\s*pay/i, "PromptPay"],
+  [/truemoney|ทรูมันนี่/i, "TrueMoney"],
+  [/\bcimb\b|ซีไอเอ็มบี/i, "CIMB"],
+  [/\buob\b|ยูโอบี/i, "UOB"],
+  [/\blh\s*bank\b|แลนด์\s*แอนด์\s*เฮ้าส์/i, "LH Bank"],
+  [/\bkkp\b|เกียรตินาคิน/i, "KKP"],
+  [/\btisco\b|ทิสโก้/i, "TISCO"],
+  [/\bbaac\b|ธ\.?ก\.?ส\.?/iu, "BAAC"],
+  [/\bghb\b|ธ\.?อ\.?ส\.?|อาคารสงเคราะห์/iu, "GHB"],
 ];
 
 const AMOUNT_LABEL_REGEX =
@@ -316,45 +329,94 @@ function extractTransactionDate(searchLines: string[]): string | null {
   return null;
 }
 
-function detectBankHint(searchLines: string[]): string | null {
-  const joined = searchLines.join("\n");
+function detectBankInText(text: string): string | null {
   for (const [matcher, label] of BANK_MATCHERS) {
-    if (matcher.test(joined)) {
+    if (matcher.test(text)) {
       return label;
     }
   }
   return null;
 }
 
+function detectBankHint(searchLines: string[]): string | null {
+  for (const line of searchLines) {
+    const found = detectBankInText(line);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
 function cleanRecipientCandidate(raw: string): string | null {
-  const stripped = raw
+  let stripped = raw
     .replace(
       /^(?:ไปยัง|ถึง|ผู้รับเงิน|ผู้รับ|บัญชีผู้รับ|เข้าบัญชี|ชื่อบัญชี|ร้านค้า|(?:to|recipient|merchant)(?=\s*[:：-]|\s+|$))\s*[:：-]?\s*/iu,
       ""
     )
-    .replace(/\bxxx[-x\d]*x\b/giu, "")
+    .replace(/[xX*]{2,}[-\s\dxX*]*\d[xX*\d-]*/gu, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Remove trailing bank label if it appeared inline after the recipient name
+  for (const [bankPattern] of BANK_MATCHERS) {
+    const trailingBank = new RegExp(`\\s+(?:${bankPattern.source})$`, "iu");
+    stripped = stripped.replace(trailingBank, "").trim();
+  }
 
   if (!stripped || stripped.length < 2) {
     return null;
   }
   // Ignore lines that are purely bank codes, phone/account masks, or reference numbers.
-  if (/^[\d\sxX-]+$/.test(stripped)) {
+  if (/^[\d\sxX*-]+$/.test(stripped)) {
     return null;
   }
   if (/^(?:รหัสอ้างอิง|เลขที่รายการ|ref\.?\s*no\.?|transaction\s*id)/iu.test(stripped)) {
     return null;
   }
-  return stripped.slice(0, 80);
+  return stripped.slice(0, 120);
 }
 
-function extractRecipient(searchLines: string[]): string | null {
+function extractAccountMaskFromLine(line: string): string | null {
+  const maskedMatch = line.match(
+    /[xX*]{2,}(?:[-\s]*[\dxX*]){2,}[-\s]*\d[xX*\d-]*/u
+  );
+  if (maskedMatch) {
+    return maskAccountNumber(maskedMatch[0]);
+  }
+
+  if (/\d\.\d{2}\b/.test(line)) {
+    return null;
+  }
+  if (/^(?:รหัสอ้างอิง|เลขที่รายการ|ref\.?\s*no\.?|transaction\s*id)/iu.test(line)) {
+    return null;
+  }
+
+  const formattedNumberMatch = line.match(
+    /(?<!\d)(?:\d{3}[-\s]\d{1,3}[-\s]\d{3,5}(?:[-\s]\d{1,2})?|\d{10,12})(?!\d)/u
+  );
+  if (formattedNumberMatch) {
+    return maskAccountNumber(formattedNumberMatch[0]);
+  }
+
+  return null;
+}
+
+function extractRecipientDetails(searchLines: string[]): {
+  recipientName: string | null;
+  recipientBank: string | null;
+  recipientAccount: string | null;
+} {
   const inlinePrefixRegex =
     /^(?:ไปยัง|ผู้รับเงิน|ผู้รับ|เข้าบัญชี|บัญชีผู้รับ|ร้านค้า|(?:to|recipient|merchant)(?=\s*[:：-]|\s+))\s*[:：-]?\s*(.+)$/iu;
   const labelOnlyRegex =
     /^(?:ไปยัง|ผู้รับเงิน|ผู้รับ|เข้าบัญชี|บัญชีผู้รับ|\bto\b|\brecipient\b)\s*[:：-]?$/iu;
   const senderPrefixRegex = /^(?:จาก|ผู้โอน|from)\b/iu;
+  const stopSectionRegex =
+    /^(?:จำนวนเงิน|จำนวน|ยอดโอน|ยอดชำระ|ค่าธรรมเนียม|รหัสอ้างอิง|เลขที่รายการ|บันทึกช่วยจำ|หมายเหตุ|amount|fee|charge|ref\.?\s*no\.?|memo|note)\b/iu;
+
+  let anchorIdx = -1;
+  let recipientName: string | null = null;
 
   for (let i = 0; i < searchLines.length; i++) {
     const line = searchLines[i];
@@ -365,16 +427,58 @@ function extractRecipient(searchLines: string[]): string | null {
     const inlineMatch = line.match(inlinePrefixRegex);
     if (inlineMatch) {
       const cleaned = cleanRecipientCandidate(inlineMatch[1]);
-      if (cleaned) return cleaned;
+      if (cleaned) {
+        anchorIdx = i;
+        recipientName = cleaned;
+        break;
+      }
     }
 
     if (labelOnlyRegex.test(line) && i + 1 < searchLines.length) {
       const next = cleanRecipientCandidate(searchLines[i + 1]);
-      if (next) return next;
+      if (next) {
+        anchorIdx = i;
+        recipientName = next;
+        break;
+      }
     }
   }
 
-  return null;
+  if (anchorIdx < 0) {
+    return {
+      recipientName: null,
+      recipientBank: null,
+      recipientAccount: null,
+    };
+  }
+
+  let recipientBank: string | null = null;
+  let recipientAccount: string | null = null;
+
+  const maxLookahead = Math.min(searchLines.length - 1, anchorIdx + 3);
+  for (let j = anchorIdx; j <= maxLookahead; j++) {
+    const candidateLine = searchLines[j];
+    if (j > anchorIdx && stopSectionRegex.test(candidateLine)) {
+      break;
+    }
+
+    if (!recipientBank) {
+      recipientBank = detectBankInText(candidateLine);
+    }
+    if (!recipientAccount) {
+      recipientAccount = extractAccountMaskFromLine(candidateLine);
+    }
+
+    if (recipientBank && recipientAccount) {
+      break;
+    }
+  }
+
+  return {
+    recipientName,
+    recipientBank,
+    recipientAccount,
+  };
 }
 
 function extractMemo(searchLines: string[]): string | null {
@@ -486,6 +590,24 @@ function computeConfidence(
   return Number(Math.max(0, Math.min(1, blended)).toFixed(2));
 }
 
+function extractTransactionTime(searchLines: string[]): string | null {
+  for (const line of searchLines) {
+    // Match "14:35", "14:35:20", "14.35 น.", "14:35 น."
+    const match = line.match(
+      /(?:^|[^\d])([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?(?:\s*น\.?)?(?:$|[^\d])/u
+    );
+    if (match) {
+      const hh = String(Number(match[1])).padStart(2, "0");
+      const mm = match[2];
+      const formatted = `${hh}:${mm}`;
+      if (isValidTime24(formatted)) {
+        return formatted;
+      }
+    }
+  }
+  return null;
+}
+
 export function parseThaiBankSlip(
   rawText: string,
   lines?: OcrLineItem[]
@@ -493,11 +615,13 @@ export function parseThaiBankSlip(
   const searchLines = buildSearchLines(rawText, lines);
   const amount = extractAmount(searchLines);
   const transactionDate = extractTransactionDate(searchLines);
+  const transactionTime = extractTransactionTime(searchLines);
   const bankHint = detectBankHint(searchLines);
-  const recipient = extractRecipient(searchLines);
+  const { recipientName, recipientBank, recipientAccount } =
+    extractRecipientDetails(searchLines);
   const memo = extractMemo(searchLines);
 
-  const labelPart = [memo, recipient].filter(Boolean).join(" · ");
+  const labelPart = [memo, recipientName].filter(Boolean).join(" · ");
   let suggestedNote: string | null = null;
   if (labelPart && bankHint) {
     suggestedNote = `${labelPart} (${bankHint})`;
@@ -518,8 +642,12 @@ export function parseThaiBankSlip(
   return {
     amount,
     transactionDate,
+    transactionTime,
     suggestedNote,
     bankHint,
+    recipientName,
+    recipientBank,
+    recipientAccount,
     confidence: computeConfidence(lines, Boolean(amount), Boolean(transactionDate)),
     warnings,
   };

@@ -116,7 +116,45 @@ describe("slip-parser", () => {
 
     expect(parsed.amount).toBeNull();
     expect(parsed.transactionDate).toBeNull();
+    expect(parsed.recipientName).toBeNull();
+    expect(parsed.recipientBank).toBeNull();
+    expect(parsed.recipientAccount).toBeNull();
     expect(parsed.warnings).toHaveLength(2);
     expect(parsed.confidence).toBeLessThan(0.5);
+  });
+
+  it("extracts recipient name, destination bank, and masked account from slip", () => {
+    const scbToKbank = parseThaiBankSlip(
+      [
+        "SCB EASY",
+        "โอนเงินสำเร็จ",
+        "20 พ.ย. 2569 - 10:15",
+        "จาก นางสาว เอ บี",
+        "xxx-x-x0001-x",
+        "ไปยัง นาย ธนากร ขวัญพูล",
+        "กสิกรไทย xxx-x-x4821-x",
+        "จำนวนเงิน 550.00 บาท",
+        "ค่าธรรมเนียม 0.00 บาท",
+      ].join("\n")
+    );
+
+    expect(scbToKbank.bankHint).toBe("SCB");
+    expect(scbToKbank.recipientName).toBe("นาย ธนากร ขวัญพูล");
+    expect(scbToKbank.recipientBank).toBe("K PLUS");
+    expect(scbToKbank.recipientAccount).toBe("xxx-x-x4821-x");
+
+    const promptPaySlip = parseThaiBankSlip(
+      [
+        "K PLUS",
+        "21 พ.ย. 2569",
+        "ไปยัง ร้านก๋วยเตี๋ยวลุงชัย",
+        "พร้อมเพย์ 081-234-5678",
+        "จำนวนเงิน 65.00 บาท",
+      ].join("\n")
+    );
+
+    expect(promptPaySlip.recipientName).toBe("ร้านก๋วยเตี๋ยวลุงชัย");
+    expect(promptPaySlip.recipientBank).toBe("PromptPay");
+    expect(promptPaySlip.recipientAccount).toBe("xxx-xxx-5678");
   });
 });

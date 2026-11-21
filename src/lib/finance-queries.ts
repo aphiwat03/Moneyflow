@@ -14,11 +14,13 @@ import {
   transactions,
   wallets,
 } from "@/db/schema";
+import { escapeSqlLikePattern } from "./auth-policy";
 import {
   buildDashboardAnalytics,
   getTrailingMonths,
 } from "./dashboard-analytics";
 import {
+  compareTransactionsByDateTimeDesc,
   getBangkokToday,
   getBangkokYearMonth,
   getMonthDateRange,
@@ -177,9 +179,12 @@ export async function getUserTransactions(
     conditions.push(lte(transactions.transactionDate, filters.endDate));
   }
   if (filters.q?.trim()) {
-    const pattern = `%${filters.q.trim()}%`;
+    const pattern = `%${escapeSqlLikePattern(filters.q.trim())}%`;
     const matchQuery = or(
       ilike(transactions.note, pattern),
+      ilike(transactions.recipientName, pattern),
+      ilike(transactions.recipientBank, pattern),
+      ilike(transactions.recipientAccount, pattern),
       ilike(categories.name, pattern),
       ilike(fromWallet.name, pattern),
       ilike(toWallet.name, pattern)
@@ -187,7 +192,7 @@ export async function getUserTransactions(
     if (matchQuery) conditions.push(matchQuery);
   }
 
-  const rows = await db
+  const baseQuery = db
     .select({
       id: transactions.id,
       type: transactions.type,
@@ -201,7 +206,12 @@ export async function getUserTransactions(
       categoryColor: categories.color,
       amount: transactions.amount,
       transactionDate: transactions.transactionDate,
+      transactionTime: transactions.transactionTime,
+      createdAt: transactions.createdAt,
       note: transactions.note,
+      recipientName: transactions.recipientName,
+      recipientBank: transactions.recipientBank,
+      recipientAccount: transactions.recipientAccount,
     })
     .from(transactions)
     .innerJoin(
@@ -228,7 +238,17 @@ export async function getUserTransactions(
     .where(and(...conditions))
     .orderBy(desc(transactions.transactionDate), desc(transactions.createdAt));
 
-  return rows;
+  const rows =
+    typeof filters.limit === "number" && filters.limit > 0
+      ? await baseQuery.limit(filters.limit)
+      : await baseQuery;
+
+  return rows
+    .map((row) => ({
+      ...row,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    }))
+    .sort(compareTransactionsByDateTimeDesc);
 }
 
 export async function getUserSalaryConfig(userId: string): Promise<{

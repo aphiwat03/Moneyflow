@@ -22,7 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatIsoDateForDisplay } from "@/lib/date";
+import {
+  formatIsoDateForDisplay,
+  formatTransactionDateTimeDisplay,
+  getTransactionDisplayTime,
+} from "@/lib/date";
 import { formatMoneyDisplay, sumMoney } from "@/lib/decimal";
 import type { TransactionDTO, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -152,6 +156,7 @@ export function TransactionsListSection({
                 <CardContent className="divide-y p-0">
                   {group.items.map((tx) => {
                     const badge = TYPE_BADGE[tx.type];
+                    const txTime = getTransactionDisplayTime(tx);
                     return (
                       <div
                         key={tx.id}
@@ -189,7 +194,19 @@ export function TransactionsListSection({
                               >
                                 {tx.walletName}
                               </Badge>
+                              {txTime ? (
+                                <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                                  {txTime} น.
+                                </span>
+                              ) : null}
                             </div>
+                            {tx.recipientName ? (
+                              <p className="truncate text-xs font-medium text-teal-700 dark:text-teal-300">
+                                → {tx.recipientName}
+                                {tx.recipientBank ? ` (${tx.recipientBank})` : ""}
+                                {tx.recipientAccount ? ` · ${tx.recipientAccount}` : ""}
+                              </p>
+                            ) : null}
                             {tx.note ? (
                               <p className="truncate text-xs text-muted-foreground">
                                 {tx.note}
@@ -290,8 +307,8 @@ export function TransactionsListSection({
                             {badge.label}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {formatIsoDateForDisplay(tx.transactionDate)} •{" "}
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          {formatTransactionDateTimeDisplay(tx)} •{" "}
                           {tx.walletName}
                         </p>
                         {tx.note ? (
@@ -355,7 +372,7 @@ export function TransactionsListSection({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32">วันที่</TableHead>
+                  <TableHead className="w-40">วันที่ / เวลา</TableHead>
                   <TableHead className="w-24">ประเภท</TableHead>
                   <TableHead>หมวดหมู่ / เส้นทางโอน</TableHead>
                   <TableHead>กระเป๋าเงิน</TableHead>
@@ -367,10 +384,16 @@ export function TransactionsListSection({
               <TableBody>
                 {paginatedRows.map((tx) => {
                   const badge = TYPE_BADGE[tx.type];
+                  const txTime = getTransactionDisplayTime(tx);
                   return (
                     <TableRow key={tx.id}>
                       <TableCell className="text-xs text-muted-foreground tabular-nums">
-                        {formatIsoDateForDisplay(tx.transactionDate)}
+                        <div>{formatIsoDateForDisplay(tx.transactionDate)}</div>
+                        {txTime ? (
+                          <div className="text-[11px] opacity-80">
+                            {txTime} น.
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={badge.className}>

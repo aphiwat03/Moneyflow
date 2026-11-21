@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { getMonthDateRange } from "./date";
+import { compareTransactionsByDateTimeDesc, getMonthDateRange } from "./date";
 import { computeRecordingStreak } from "./streak";
 import {
   computeNetWorthSummary,
@@ -128,6 +128,9 @@ export function filterTransactionsList(
     if (query) {
       const haystacks = [
         tx.note ?? "",
+        tx.recipientName ?? "",
+        tx.recipientBank ?? "",
+        tx.recipientAccount ?? "",
         tx.categoryName ?? "",
         tx.walletName,
         tx.toWalletName ?? "",
@@ -271,8 +274,8 @@ export function buildDashboardAnalytics(params: {
     };
   });
 
-  const sortedRecent = [...periodTransactions].sort((a, b) =>
-    b.transactionDate.localeCompare(a.transactionDate)
+  const sortedRecent = [...periodTransactions].sort(
+    compareTransactionsByDateTimeDesc
   );
 
   const budgetStatuses: BudgetStatusPoint[] = categories

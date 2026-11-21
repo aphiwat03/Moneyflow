@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import * as z from "zod";
-import { isValidIsoCalendarDate } from "./date";
+import { isValidIsoCalendarDate, isValidTime24 } from "./date";
+import { maskAccountNumber } from "./recipient-summary";
 
 export const WALLET_TYPES = [
   "cash",
@@ -295,6 +296,19 @@ export const transactionSchema = z
       .transform((v) => (v ? v : null)),
     amount: positiveMoneyStringSchema,
     transactionDate: isoDateSchema,
+    transactionTime: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .transform((v) => {
+        if (!v) return null;
+        return v.length >= 5 ? v.slice(0, 5) : v;
+      })
+      .refine(
+        (v) => v === null || isValidTime24(v),
+        "รูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:mm)"
+      ),
     note: z
       .string()
       .trim()
@@ -302,6 +316,27 @@ export const transactionSchema = z
       .optional()
       .nullable()
       .transform((v) => (v && v.length > 0 ? v : null)),
+    recipientName: z
+      .string()
+      .trim()
+      .max(120, "ชื่อผู้รับต้องไม่เกิน 120 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    recipientBank: z
+      .string()
+      .trim()
+      .max(60, "ชื่อธนาคารปลายทางต้องไม่เกิน 60 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    recipientAccount: z
+      .string()
+      .trim()
+      .max(64, "เลขบัญชีต้องไม่เกิน 64 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => maskAccountNumber(v)),
   })
   .superRefine((data, ctx) => {
     if (data.type === "transfer") {
@@ -361,7 +396,10 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: z.email("รูปแบบอีเมลไม่ถูกต้อง").trim().toLowerCase(),
-  password: z.string().min(1, "กรุณากรอกรหัสผ่าน"),
+  password: z
+    .string()
+    .min(1, "กรุณากรอกรหัสผ่าน")
+    .max(128, "รหัสผ่านต้องไม่เกิน 128 ตัวอักษร"),
 });
 
 export const monthKeySchema = z

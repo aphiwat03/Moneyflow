@@ -95,7 +95,8 @@ export function ManageAccountCards({
         setConfirmPassword("");
         onNotify({
           type: "success",
-          message: "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว",
+          message:
+            "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว ระบบกำลังพาไปหน้าเข้าสู่ระบบใหม่เพื่อความปลอดภัย",
         });
       }
     } finally {

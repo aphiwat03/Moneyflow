@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkMemoryRateLimit } from "@/lib/rate-limit";
 import { getOptionalUser } from "@/lib/session";
 import {
   getSlipOcrProvider,
@@ -6,7 +7,9 @@ import {
   SlipOcrProviderError,
 } from "@/lib/slip-ocr";
 
-const MAX_SLIP_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_SLIP_BYTES = 4 * 1024 * 1024; // 4 MB (fits within Vercel 4.5 MB body limit)
+const SLIP_OCR_RATE_LIMIT = 20;
+const SLIP_OCR_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 const ALLOWED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 function hasValidImageSignature(buffer: Buffer, mimeType: string): boolean {
@@ -37,6 +40,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "กรุณาเข้าสู่ระบบก่อนใช้งานระบบอ่านสลิป" },
       { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const rate = checkMemoryRateLimit({
+    key: `slip-ocr:user:${user.id}`,
+    limit: SLIP_OCR_RATE_LIMIT,
+    windowMs: SLIP_OCR_WINDOW_MS,
+  });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "มีการสแกนสลิปถี่เกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": String(rate.retryAfterSec),
+        },
+      }
     );
   }
 
@@ -71,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   if (fileEntry.size <= 0 || fileEntry.size > MAX_SLIP_BYTES) {
     return NextResponse.json(
-      { error: "ขนาดไฟล์สลิปต้องไม่เกิน 5 MB" },
+      { error: "ขนาดไฟล์สลิปต้องไม่เกิน 4 MB" },
       { status: 413, headers: { "Cache-Control": "no-store" } }
     );
   }

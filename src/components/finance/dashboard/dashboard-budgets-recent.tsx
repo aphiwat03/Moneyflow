@@ -19,7 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatIsoDateForDisplay } from "@/lib/date";
+import { formatTransactionDateTimeDisplay } from "@/lib/date";
 import { formatMoneyDisplay, toDecimal } from "@/lib/decimal";
 import type { DashboardAnalytics, TransactionDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -223,8 +223,8 @@ export function DashboardBudgetsRecent({
                             {tx.walletName}
                           </Badge>
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {formatIsoDateForDisplay(tx.transactionDate)}
+                        <p className="truncate text-xs text-muted-foreground tabular-nums">
+                          {formatTransactionDateTimeDisplay(tx)}
                           {tx.note ? ` • ${tx.note}` : ""}
                         </p>
                       </div>

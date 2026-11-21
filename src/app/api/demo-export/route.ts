@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import * as z from "zod";
 import { getBangkokToday, isValidIsoCalendarDate } from "@/lib/date";
 import { buildMoneyFlowWorkbook } from "@/lib/excel";
+import {
+  checkMemoryRateLimit,
+  getClientIpFromHeaders,
+} from "@/lib/rate-limit";
 import { positiveMoneyStringSchema, WALLET_TYPES } from "@/lib/validations";
+
+const DEMO_EXPORT_RATE_LIMIT = 10;
+const DEMO_EXPORT_WINDOW_MS = 60 * 1000; // 1 minute
 
 const demoTransactionSchema = z.object({
   id: z.string().max(64),
@@ -26,18 +33,41 @@ const demoExportBodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIpFromHeaders(request.headers);
+  const rate = checkMemoryRateLimit({
+    key: `demo-export:ip:${clientIp}`,
+    limit: DEMO_EXPORT_RATE_LIMIT,
+    windowMs: DEMO_EXPORT_WINDOW_MS,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "มีการส่งออกไฟล์ตัวอย่างถี่เกินไป กรุณารอสักครู่แล้วลองใหม่" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": String(rate.retryAfterSec),
+        },
+      }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid JSON" },
+      { status: 400, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const parsed = demoExportBodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid export payload" },
-      { status: 400 }
+      { status: 400, headers: { "Cache-Control": "no-store" } }
     );
   }
 

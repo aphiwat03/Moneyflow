@@ -5,12 +5,15 @@ export const isGoogleAuthEnabled = Boolean(
   process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
 );
 
+export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
 export const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
   session: {
     strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   providers: isGoogleAuthEnabled ? [Google] : [],
   callbacks: {
@@ -18,11 +21,17 @@ export const authConfig: NextAuthConfig = {
       if (user?.id) {
         token.sub = user.id;
       }
+      if (typeof user?.tokenVersion === "number") {
+        token.tokenVersion = user.tokenVersion;
+      }
       return token;
     },
     session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        if (typeof token.tokenVersion === "number") {
+          session.user.tokenVersion = token.tokenVersion;
+        }
       }
       return session;
     },

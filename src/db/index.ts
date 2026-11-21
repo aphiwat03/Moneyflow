@@ -13,6 +13,8 @@ function createPool(): Pool {
     return new Pool({
       connectionString,
       max: process.env.NODE_ENV === "production" ? 5 : 10,
+      idleTimeoutMillis: 20_000,
+      connectionTimeoutMillis: 10_000,
     });
   }
 

@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { mode: "date", withTimezone: true }),
   image: text("image"),
   passwordHash: text("password_hash"),
+  tokenVersion: integer("token_version").default(1).notNull(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -153,7 +154,11 @@ export const transactions = pgTable(
       .notNull(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
+    transactionTime: varchar("transaction_time", { length: 5 }),
     note: text("note"),
+    recipientName: varchar("recipient_name", { length: 120 }),
+    recipientBank: varchar("recipient_bank", { length: 60 }),
+    recipientAccount: varchar("recipient_account", { length: 64 }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -501,6 +506,16 @@ export const investmentDcaLogs = pgTable(
     index("idx_inv_dca_logs_user_date").on(t.userId, t.executedDate),
     index("idx_inv_dca_logs_holding").on(t.holdingId),
   ]
+);
+
+export const authRateLimits = pgTable(
+  "auth_rate_limits",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").default(1).notNull(),
+    resetAt: timestamp("reset_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [index("idx_auth_rate_limits_reset_at").on(t.resetAt)]
 );
 
 export type UserRecord = typeof users.$inferSelect;

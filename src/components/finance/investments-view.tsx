@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Calculator,
   Coins,
-  Database,
   Download,
   Plus,
   RotateCcw,
@@ -17,7 +17,6 @@ import type {
   RecordDcaExecutionInput,
   RecordDividendInput,
 } from "@/actions/investments";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,7 +49,6 @@ import type {
   InvestmentSnapshotDTO,
   WalletDTO,
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import {
   formatMonthKeyThai,
   HOLDING_COLOR_PRESETS,
@@ -72,30 +70,28 @@ interface PersistedInvestmentWorkspace {
 
 export interface InvestmentsViewDbHandlers {
   onSaveSettings: (
-    settings: InvestmentPlanSettingsDTO
+    settings: InvestmentPlanSettingsDTO,
   ) => Promise<ActionResult>;
   onUpsertHolding: (
     input: InvestmentHoldingFormInput,
-    editingId?: string
+    editingId?: string,
   ) => Promise<ActionResult<InvestmentHoldingDTO>>;
   onDeleteHolding: (holdingId: string) => Promise<ActionResult>;
   onUpsertSnapshot: (
-    input: InvestmentSnapshotFormInput
+    input: InvestmentSnapshotFormInput,
   ) => Promise<ActionResult<InvestmentSnapshotDTO>>;
   onDeleteSnapshot: (snapshotId: string) => Promise<ActionResult>;
-  onRecordDca: (
-    input: RecordDcaExecutionInput
-  ) => Promise<
+  onRecordDca: (input: RecordDcaExecutionInput) => Promise<
     ActionResult<{
       log: InvestmentDcaLogDTO;
       updatedHolding: InvestmentHoldingDTO;
     }>
   >;
   onDeleteDcaLog: (
-    logId: string
+    logId: string,
   ) => Promise<ActionResult<{ updatedHolding: InvestmentHoldingDTO | null }>>;
   onRecordDividend: (
-    input: RecordDividendInput
+    input: RecordDividendInput,
   ) => Promise<ActionResult<{ updatedHolding: InvestmentHoldingDTO }>>;
   onImportLocalWorkspace: (raw: unknown) => Promise<
     ActionResult<{
@@ -165,13 +161,13 @@ export function InvestmentsView({
   const [holdings, setHoldings] = useState<InvestmentHoldingDTO[]>(() =>
     isDbMode
       ? (serverHoldings ?? [])
-      : (serverHoldings ?? DEFAULT_INVESTMENT_HOLDINGS)
+      : (serverHoldings ?? DEFAULT_INVESTMENT_HOLDINGS),
   );
   const [snapshots, setSnapshots] = useState<InvestmentSnapshotDTO[]>(
-    () => serverSnapshots ?? []
+    () => serverSnapshots ?? [],
   );
   const [dcaLogs, setDcaLogs] = useState<InvestmentDcaLogDTO[]>(
-    () => serverDcaLogs ?? []
+    () => serverDcaLogs ?? [],
   );
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsSaveState, setSettingsSaveState] = useState<
@@ -187,22 +183,24 @@ export function InvestmentsView({
   // Local text inputs for smooth typing in simulator
   const [goalInput, setGoalInput] = useState(initialSettings.targetGoalAmount);
   const [principalInput, setPrincipalInput] = useState(
-    initialSettings.startingPrincipal
+    initialSettings.startingPrincipal,
   );
   const [monthlyDcaInput, setMonthlyDcaInput] = useState(
-    initialSettings.monthlyDca
+    initialSettings.monthlyDca,
   );
   const [returnInput, setReturnInput] = useState(
-    String(initialSettings.expectedAnnualReturnPct)
+    String(initialSettings.expectedAnnualReturnPct),
   );
   const [horizonInput, setHorizonInput] = useState(
-    String(initialSettings.horizonYears)
+    String(initialSettings.horizonYears),
   );
   const [stepUpInput, setStepUpInput] = useState(
-    String(initialSettings.annualDcaStepUpPct)
+    String(initialSettings.annualDcaStepUpPct),
   );
 
   // Dialog states (each form resets cleanly via formKey)
+  const [simulatorDialogOpen, setSimulatorDialogOpen] = useState(false);
+
   const [holdingDialogOpen, setHoldingDialogOpen] = useState(false);
   const [holdingFormKey, setHoldingFormKey] = useState(0);
   const [editingHolding, setEditingHolding] =
@@ -214,7 +212,7 @@ export function InvestmentsView({
   const [dcaDialogOpen, setDcaDialogOpen] = useState(false);
   const [dcaFormKey, setDcaFormKey] = useState(0);
   const [dcaHolding, setDcaHolding] = useState<InvestmentHoldingDTO | null>(
-    null
+    null,
   );
   const [dcaSuggestedAmount, setDcaSuggestedAmount] = useState<
     string | undefined
@@ -223,7 +221,7 @@ export function InvestmentsView({
   const [divDialogOpen, setDivDialogOpen] = useState(false);
   const [divFormKey, setDivFormKey] = useState(0);
   const [divHolding, setDivHolding] = useState<InvestmentHoldingDTO | null>(
-    null
+    null,
   );
 
   // Hydrate from localStorage in local mode, or detect one-time migration in DB mode
@@ -319,33 +317,33 @@ export function InvestmentsView({
 
   const portfolio = useMemo(
     () => computeInvestmentPortfolioSummary(holdings, settings),
-    [holdings, settings]
+    [holdings, settings],
   );
 
   const projection = useMemo(
     () => buildInvestmentProjection(settings, currentGregorianYear),
-    [settings, currentGregorianYear]
+    [settings, currentGregorianYear],
   );
 
   const monthlyChecklist = useMemo(
     () =>
       buildMonthlyDcaChecklist(holdings, settings, dcaLogs, currentMonthKey),
-    [holdings, settings, dcaLogs, currentMonthKey]
+    [holdings, settings, dcaLogs, currentMonthKey],
   );
 
   const sortedSnapshots = useMemo(
     () => [...snapshots].sort((a, b) => b.monthKey.localeCompare(a.monthKey)),
-    [snapshots]
+    [snapshots],
   );
 
   const existingSymbolSet = useMemo(
     () => new Set(holdings.map((h) => h.symbol.trim().toUpperCase())),
-    [holdings]
+    [holdings],
   );
 
   function updateSettingField<K extends keyof InvestmentPlanSettingsDTO>(
     key: K,
-    value: InvestmentPlanSettingsDTO[K]
+    value: InvestmentPlanSettingsDTO[K],
   ) {
     hasUserEditedSettingsRef.current = true;
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -427,7 +425,7 @@ export function InvestmentsView({
 
   function openRecordDca(
     holding: InvestmentHoldingDTO,
-    suggestedAmount?: string
+    suggestedAmount?: string,
   ) {
     setDcaHolding(holding);
     setDcaSuggestedAmount(suggestedAmount);
@@ -496,7 +494,7 @@ export function InvestmentsView({
 
   async function handleHoldingSubmit(
     payload: InvestmentHoldingFormInput,
-    editingId?: string
+    editingId?: string,
   ): Promise<string | null> {
     if (isDbMode && dbHandlers) {
       setIsMutating(true);
@@ -509,12 +507,12 @@ export function InvestmentsView({
         setHoldings((prev) =>
           editingId
             ? prev.map((item) => (item.id === editingId ? saved : item))
-            : [...prev, saved]
+            : [...prev, saved],
         );
         toast.success(
           editingId
             ? `อัปเดต ${saved.symbol} เรียบร้อยแล้ว`
-            : `เพิ่ม ${saved.symbol} เข้าพอร์ตแล้ว`
+            : `เพิ่ม ${saved.symbol} เข้าพอร์ตแล้ว`,
         );
         return null;
       } finally {
@@ -533,12 +531,12 @@ export function InvestmentsView({
     setHoldings((prev) =>
       editingId
         ? prev.map((item) => (item.id === editingId ? nextItem : item))
-        : [...prev, nextItem]
+        : [...prev, nextItem],
     );
     setNotice(
       editingId
         ? `อัปเดตข้อมูล ${nextItem.symbol} เรียบร้อยแล้ว`
-        : `เพิ่ม ${nextItem.symbol} เข้าพอร์ตจำลองเรียบร้อยแล้ว`
+        : `เพิ่ม ${nextItem.symbol} เข้าพอร์ตจำลองเรียบร้อยแล้ว`,
     );
     return null;
   }
@@ -565,7 +563,7 @@ export function InvestmentsView({
   }
 
   async function handleSnapshotSubmit(
-    snapInput: InvestmentSnapshotFormInput
+    snapInput: InvestmentSnapshotFormInput,
   ): Promise<string | null> {
     if (isDbMode && dbHandlers) {
       setIsMutating(true);
@@ -580,7 +578,7 @@ export function InvestmentsView({
           ...prev.filter((s) => s.monthKey !== saved.monthKey),
         ]);
         toast.success(
-          `บันทึกยอดพอร์ต ${formatMonthKeyThai(saved.monthKey)} แล้ว`
+          `บันทึกยอดพอร์ต ${formatMonthKeyThai(saved.monthKey)} แล้ว`,
         );
         return null;
       } finally {
@@ -599,7 +597,7 @@ export function InvestmentsView({
       return [nextSnap, ...filtered];
     });
     setNotice(
-      `บันทึกยอดพอร์ตประจำเดือน ${formatMonthKeyThai(snapInput.monthKey)} เรียบร้อยแล้ว`
+      `บันทึกยอดพอร์ตประจำเดือน ${formatMonthKeyThai(snapInput.monthKey)} เรียบร้อยแล้ว`,
     );
     return null;
   }
@@ -625,7 +623,7 @@ export function InvestmentsView({
 
   async function handleDcaSubmit(
     holding: InvestmentHoldingDTO,
-    input: RecordDcaExecutionInput
+    input: RecordDcaExecutionInput,
   ): Promise<string | null> {
     const amtDec = toDecimal(input.amountThb);
     if (isDbMode && dbHandlers) {
@@ -638,14 +636,14 @@ export function InvestmentsView({
         setDcaLogs((prev) => [res.data!.log, ...prev]);
         setHoldings((prev) =>
           prev.map((h) =>
-            h.id === res.data!.updatedHolding.id ? res.data!.updatedHolding : h
-          )
+            h.id === res.data!.updatedHolding.id ? res.data!.updatedHolding : h,
+          ),
         );
         toast.success(
           `บันทึกซื้อ DCA ${holding.symbol} ฿${formatMoneyDisplay(amtDec)} แล้ว`,
           input.createTransferTransaction
             ? "โอนเงินเข้ากระเป๋าลงทุนและบวกต้นทุนพอร์ตให้อัตโนมัติ"
-            : "อัปเดตต้นทุนสะสมในพอร์ตเรียบร้อยแล้ว"
+            : "อัปเดตต้นทุนสะสมในพอร์ตเรียบร้อยแล้ว",
         );
         return null;
       } finally {
@@ -683,11 +681,11 @@ export function InvestmentsView({
               currentValue: math.nextCurrentValue,
               units: math.nextUnits,
             }
-          : h
-      )
+          : h,
+      ),
     );
     toast.success(
-      `บันทึกซื้อ DCA ${holding.symbol} ฿${formatMoneyDisplay(amtDec)} แล้ว`
+      `บันทึกซื้อ DCA ${holding.symbol} ฿${formatMoneyDisplay(amtDec)} แล้ว`,
     );
     return null;
   }
@@ -705,14 +703,14 @@ export function InvestmentsView({
         if (res.data?.updatedHolding) {
           const updated = res.data.updatedHolding;
           setHoldings((prev) =>
-            prev.map((h) => (h.id === updated.id ? updated : h))
+            prev.map((h) => (h.id === updated.id ? updated : h)),
           );
         }
         toast.success(
           `ยกเลิกรายการ DCA ${log.holdingSymbol} แล้ว`,
           log.transactionId
             ? "ปรับต้นทุนพอร์ตและลบรายการโอนที่ผูกไว้คืนให้เรียบร้อย"
-            : "ปรับยอดต้นทุนพอร์ตคืนให้เรียบร้อย"
+            : "ปรับยอดต้นทุนพอร์ตคืนให้เรียบร้อย",
         );
       } finally {
         setIsMutating(false);
@@ -737,13 +735,13 @@ export function InvestmentsView({
           currentValue: math.nextCurrentValue,
           units: math.nextUnits,
         };
-      })
+      }),
     );
   }
 
   async function handleDividendSubmit(
     holding: InvestmentHoldingDTO,
-    input: RecordDividendInput
+    input: RecordDividendInput,
   ): Promise<string | null> {
     const amtDec = toDecimal(input.amountThb);
     if (isDbMode && dbHandlers) {
@@ -755,10 +753,10 @@ export function InvestmentsView({
         }
         const updated = res.data.updatedHolding;
         setHoldings((prev) =>
-          prev.map((h) => (h.id === updated.id ? updated : h))
+          prev.map((h) => (h.id === updated.id ? updated : h)),
         );
         toast.success(
-          `บันทึกปันผล ${holding.symbol} +฿${formatMoneyDisplay(amtDec)} แล้ว`
+          `บันทึกปันผล ${holding.symbol} +฿${formatMoneyDisplay(amtDec)} แล้ว`,
         );
         return null;
       } finally {
@@ -775,11 +773,11 @@ export function InvestmentsView({
                 .plus(amtDec)
                 .toFixed(2),
             }
-          : h
-      )
+          : h,
+      ),
     );
     toast.success(
-      `บันทึกปันผล ${holding.symbol} +฿${formatMoneyDisplay(amtDec)} แล้ว`
+      `บันทึกปันผล ${holding.symbol} +฿${formatMoneyDisplay(amtDec)} แล้ว`,
     );
     return null;
   }
@@ -813,7 +811,7 @@ export function InvestmentsView({
       }
       toast.success(
         "ย้ายแผนลงทุนเข้า PostgreSQL สำเร็จ",
-        `นำเข้า ${res.data.holdings.length} สินทรัพย์ และ ${res.data.snapshots.length} รายการย้อนหลังแล้ว`
+        `นำเข้า ${res.data.holdings.length} สินทรัพย์ และ ${res.data.snapshots.length} รายการย้อนหลังแล้ว`,
       );
     } finally {
       setIsMutating(false);
@@ -846,7 +844,7 @@ export function InvestmentsView({
       if (!response.ok) {
         toast.error(
           "อัปเดตราคาตลาดไม่สำเร็จ",
-          payload?.error ?? "ไม่สามารถเชื่อมต่อแหล่งข้อมูลราคาได้"
+          payload?.error ?? "ไม่สามารถเชื่อมต่อแหล่งข้อมูลราคาได้",
         );
         return;
       }
@@ -864,7 +862,7 @@ export function InvestmentsView({
                   currency: hit.currency,
                 }
               : h;
-          })
+          }),
         );
         const fxInfo = payload?.usdThbRate
           ? ` (USD/THB ≈ ${payload.usdThbRate.toFixed(2)})`
@@ -875,19 +873,19 @@ export function InvestmentsView({
             : "";
         toast.success(
           `อัปเดตราคาตลาดแล้ว ${updatedList.length} รายการ${fxInfo}`,
-          failInfo || "คำนวณมูลค่าพอร์ตเป็นเงินบาทล่าสุดเรียบร้อย"
+          failInfo || "คำนวณมูลค่าพอร์ตเป็นเงินบาทล่าสุดเรียบร้อย",
         );
       } else {
         toast.warning(
           "ยังไม่มีรายการที่อัปเดตราคาได้",
           payload?.message ??
-            "กรอกจำนวนหน่วย (Units > 0) ในหุ้น/ETF ที่มี Ticker มาตรฐาน เช่น VOO, QQQM, PTT.BK ก่อนนะครับ"
+            "กรอกจำนวนหน่วย (Units > 0) ในหุ้น/ETF ที่มี Ticker มาตรฐาน เช่น VOO, QQQM, PTT.BK ก่อนนะครับ",
         );
       }
     } catch {
       toast.error(
         "เชื่อมต่อดึงราคาตลาดไม่สำเร็จ",
-        "ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง"
+        "ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง",
       );
     } finally {
       setIsRefreshingPrices(false);
@@ -897,7 +895,7 @@ export function InvestmentsView({
   function handleUseSnapshotAsPrincipal(snap: InvestmentSnapshotDTO) {
     handlePrincipalChange(snap.marketValue);
     setNotice(
-      `นำมูลค่าพอร์ตเดือน ${formatMonthKeyThai(snap.monthKey)} (฿${formatMoneyDisplay(snap.marketValue)}) ไปใส่ในตัวจำลองด้านบนแล้ว`
+      `นำมูลค่าพอร์ตเดือน ${formatMonthKeyThai(snap.monthKey)} (฿${formatMoneyDisplay(snap.marketValue)}) ไปใส่ในตัวจำลองด้านบนแล้ว`,
     );
   }
 
@@ -908,10 +906,10 @@ export function InvestmentsView({
 
   const remainingTargetPct = Math.max(
     0,
-    Math.round(100 - portfolio.totalTargetAllocationPct)
+    Math.round(100 - portfolio.totalTargetAllocationPct),
   );
   const defaultNewHoldingTargetPct = String(
-    remainingTargetPct > 0 ? remainingTargetPct : 10
+    remainingTargetPct > 0 ? remainingTargetPct : 10,
   );
   const defaultNewHoldingColor =
     HOLDING_COLOR_PRESETS[holdings.length % HOLDING_COLOR_PRESETS.length];
@@ -925,31 +923,6 @@ export function InvestmentsView({
             <h1 className="text-2xl font-bold tracking-tight">
               การลงทุน &amp; แผน DCA
             </h1>
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[11px] font-medium",
-                isDbMode
-                  ? "border-emerald-600/35 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
-                  : "border-teal-600/30 bg-teal-600/10 text-teal-700 dark:text-teal-300"
-              )}
-            >
-              {isDbMode ? (
-                <span className="inline-flex items-center gap-1">
-                  <Database className="h-3 w-3" />
-                  <span>
-                    ซิงก์ PostgreSQL แล้ว
-                    {settingsSaveState === "saving"
-                      ? " · กำลังบันทึก..."
-                      : settingsSaveState === "saved"
-                        ? " · บันทึกแล้ว"
-                        : ""}
-                  </span>
-                </span>
-              ) : (
-                "โหมดทดลอง • บันทึกในเบราว์เซอร์"
-              )}
-            </Badge>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {isDbMode
@@ -971,6 +944,16 @@ export function InvestmentsView({
               <span>รีเซ็ตค่าเริ่มต้น</span>
             </Button>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSimulatorDialogOpen(true)}
+            className="gap-1.5"
+          >
+            <Calculator className="h-3.5 w-3.5 text-teal-600" />
+            <span>คำนวณแผนการลงทุน</span>
+          </Button>
           <Button
             type="button"
             onClick={openAddHolding}
@@ -1140,8 +1123,12 @@ export function InvestmentsView({
         </Card>
       </div>
 
-      {/* Simulator & Charts */}
+      {/* Simulator Dialog & Charts */}
       <InvestmentSimulatorCard
+        open={simulatorDialogOpen}
+        onOpenChange={setSimulatorDialogOpen}
+        isDbMode={isDbMode}
+        settingsSaveState={settingsSaveState}
         settings={settings}
         portfolio={portfolio}
         projection={projection}

@@ -8,10 +8,12 @@ import {
   ArrowUpRight,
   Camera,
   Check,
+  ChevronDown,
   Loader2,
   Sparkles,
   Trash2,
   Upload,
+  UserRound,
 } from "lucide-react";
 import type { TransactionFormInput } from "@/actions/transactions";
 import { Button } from "@/components/ui/button";
@@ -24,11 +26,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AppDatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { AppSelect } from "@/components/ui/select";
 import { SmoothExpand } from "@/components/ui/smooth-expand";
 import { toast } from "@/components/ui/toast";
-import { getBangkokToday } from "@/lib/date";
+import {
+  getBangkokCurrentTime,
+  getBangkokToday,
+  getTransactionDisplayTime,
+} from "@/lib/date";
 import { formatMoneyDisplay } from "@/lib/decimal";
 import { pickSlipWalletId } from "@/lib/slip-parser";
 import { extractTaxAlertFromResult } from "@/lib/thai-tax";
@@ -45,7 +52,7 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const MAX_SLIP_BYTES = 5 * 1024 * 1024;
+const MAX_SLIP_BYTES = 4 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 interface TransactionFormDialogProps {
@@ -149,7 +156,28 @@ function TransactionFormBody({
   const [transactionDate, setTransactionDate] = useState(
     () => initialTransaction?.transactionDate ?? getBangkokToday()
   );
+  const [transactionTime, setTransactionTime] = useState(() =>
+    initialTransaction
+      ? (getTransactionDisplayTime(initialTransaction) ?? "")
+      : getBangkokCurrentTime()
+  );
   const [note, setNote] = useState(initialTransaction?.note ?? "");
+  const [recipientName, setRecipientName] = useState(
+    initialTransaction?.recipientName ?? ""
+  );
+  const [recipientBank, setRecipientBank] = useState(
+    initialTransaction?.recipientBank ?? ""
+  );
+  const [recipientAccount, setRecipientAccount] = useState(
+    initialTransaction?.recipientAccount ?? ""
+  );
+  const [recipientOpen, setRecipientOpen] = useState(() =>
+    Boolean(
+      initialTransaction?.recipientName ||
+        initialTransaction?.recipientBank ||
+        initialTransaction?.recipientAccount
+    )
+  );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -225,6 +253,11 @@ function TransactionFormBody({
 
         const demoBankHint = provider === "gemini" ? "K PLUS" : "SCB";
         const demoAmount = provider === "gemini" ? "145.00" : "285.50";
+        const demoRecipientName =
+          provider === "gemini" ? "ร้านกาแฟอเมซอน" : "7-Eleven สาขาสามย่าน";
+        const demoRecipientBank = provider === "gemini" ? "K PLUS" : "SCB";
+        const demoRecipientAccount =
+          provider === "gemini" ? "xxx-x-x4821-x" : "xxx-x-x9032-x";
         const demoNote =
           provider === "gemini"
             ? "ร้านกาแฟอเมซอน (Gemini Mock)"
@@ -232,7 +265,14 @@ function TransactionFormBody({
         applyMatchedSlipWallet(demoBankHint);
         setAmount(demoAmount);
         setTransactionDate(getBangkokToday());
+        setTransactionTime(getBangkokCurrentTime());
         setNote((prev) => (prev.trim() ? prev : demoNote));
+        setRecipientName((prev) => (prev.trim() ? prev : demoRecipientName));
+        setRecipientBank((prev) => (prev.trim() ? prev : demoRecipientBank));
+        setRecipientAccount((prev) =>
+          prev.trim() ? prev : demoRecipientAccount
+        );
+        setRecipientOpen(true);
         toast.warning(
           provider === "gemini"
             ? "โหมด Demo: จำลองผลลัพธ์ Gemini"
@@ -275,8 +315,25 @@ function TransactionFormBody({
       if (data.transactionDate) {
         setTransactionDate(data.transactionDate);
       }
+      if (data.transactionTime) {
+        setTransactionTime(data.transactionTime);
+      }
       if (data.suggestedNote) {
         setNote((prev) => (prev.trim() ? prev : data.suggestedNote!));
+      }
+      if (data.recipientName) {
+        setRecipientName((prev) => (prev.trim() ? prev : data.recipientName!));
+      }
+      if (data.recipientBank) {
+        setRecipientBank((prev) => (prev.trim() ? prev : data.recipientBank!));
+      }
+      if (data.recipientAccount) {
+        setRecipientAccount((prev) =>
+          prev.trim() ? prev : data.recipientAccount!
+        );
+      }
+      if (data.recipientName || data.recipientBank || data.recipientAccount) {
+        setRecipientOpen(true);
       }
 
       const { switchedWalletName, isStillCash } = applyMatchedSlipWallet(
@@ -336,7 +393,7 @@ function TransactionFormBody({
       return;
     }
     if (file.size > MAX_SLIP_BYTES) {
-      toast.error("ไฟล์มีขนาดใหญ่เกินไป", "ขนาดไฟล์สลิปต้องไม่เกิน 5 MB");
+      toast.error("ไฟล์มีขนาดใหญ่เกินไป", "ขนาดไฟล์สลิปต้องไม่เกิน 4 MB");
       return;
     }
     slipFileRef.current = file;
@@ -435,7 +492,11 @@ function TransactionFormBody({
         categoryId: type === "transfer" ? null : categoryId,
         amount: amount.trim(),
         transactionDate,
+        transactionTime: transactionTime.trim() || null,
         note: note.trim() || null,
+        recipientName: recipientName.trim() || null,
+        recipientBank: recipientBank.trim() || null,
+        recipientAccount: recipientAccount.trim() || null,
       };
 
       const result = await onSubmit(payload, initialTransaction?.id);
@@ -760,19 +821,31 @@ function TransactionFormBody({
         </div>
       </SmoothExpand>
 
-      {/* Date & Note */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="tx-date">วันที่ (เวลาไทย)</Label>
-          <Input
-            id="tx-date"
-            type="date"
-            value={transactionDate}
-            onChange={(e) => setTransactionDate(e.target.value)}
-            disabled={isScanningSlip}
-            className="h-10"
-            required
-          />
+      {/* Date, Time & Note */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="tx-date">วันที่ (เวลาไทย)</Label>
+            <AppDatePicker
+              id="tx-date"
+              value={transactionDate}
+              onChange={setTransactionDate}
+              disabled={isScanningSlip}
+              className="h-10"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="tx-time">เวลา (เวลาไทย)</Label>
+            <Input
+              id="tx-time"
+              type="time"
+              value={transactionTime}
+              onChange={(e) => setTransactionTime(e.target.value)}
+              disabled={isScanningSlip}
+              className="h-10 tabular-nums"
+            />
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -787,6 +860,84 @@ function TransactionFormBody({
             maxLength={1000}
           />
         </div>
+      </div>
+
+      {/* Collapsible Recipient Metadata (adds 1 slim button when collapsed; auto-opens on OCR slip match) */}
+      <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setRecipientOpen((prev) => !prev)}
+          aria-expanded={recipientOpen}
+          className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <UserRound className="h-3.5 w-3.5 shrink-0 text-teal-600" />
+            <span className="truncate">
+              {recipientName.trim() || recipientBank.trim() || recipientAccount.trim()
+                ? `ผู้รับ: ${recipientName.trim() || recipientAccount.trim()}${recipientBank.trim() ? ` (${recipientBank.trim()})` : ""}`
+                : "เพิ่มข้อมูลผู้รับโอน / ชื่อบัญชี (ไม่บังคับ)"}
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+              recipientOpen && "rotate-180"
+            )}
+          />
+        </button>
+
+        <SmoothExpand watchKey={recipientOpen ? "open" : "closed"}>
+          {recipientOpen ? (
+            <div className="mt-2.5 space-y-2.5 border-t border-border/60 pt-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="tx-recipient-name" className="text-xs">
+                  ชื่อบัญชีผู้รับ / ร้านค้า
+                </Label>
+                <Input
+                  id="tx-recipient-name"
+                  type="text"
+                  placeholder="เช่น นาย สมชาย ใจดี หรือ ร้านกาแฟ"
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  className="h-9 text-sm"
+                  maxLength={120}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="tx-recipient-bank" className="text-xs">
+                    ธนาคารปลายทาง
+                  </Label>
+                  <Input
+                    id="tx-recipient-bank"
+                    type="text"
+                    placeholder="เช่น SCB, K PLUS, PromptPay"
+                    value={recipientBank}
+                    onChange={(e) => setRecipientBank(e.target.value)}
+                    className="h-9 text-sm"
+                    maxLength={60}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="tx-recipient-account" className="text-xs">
+                    เลขบัญชี (ปิดอัตโนมัติเหลือ 4 ตัวท้าย)
+                  </Label>
+                  <Input
+                    id="tx-recipient-account"
+                    type="text"
+                    placeholder="เช่น xxx-x-x1234-x"
+                    value={recipientAccount}
+                    onChange={(e) => setRecipientAccount(e.target.value)}
+                    className="h-9 text-sm tabular-nums"
+                    maxLength={64}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </SmoothExpand>
       </div>
 
       <DialogFooter className="pt-2">

@@ -32,6 +32,7 @@ services:
       OCR_HOST: 0.0.0.0
       OCR_PORT: "8001"
       OCR_THREADS: "1"
+      OCR_SHARED_SECRET: "${OCR_SHARED_SECRET:-}"
     healthcheck:
       test:
         [

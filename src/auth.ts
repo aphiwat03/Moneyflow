@@ -12,6 +12,7 @@ import {
   verificationTokens,
 } from "@/db/schema";
 import { seedDefaultDataForUser } from "@/db/seed";
+import { canOAuthSignIn } from "@/lib/auth-policy";
 import { loginSchema } from "@/lib/validations";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -43,6 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: users.email,
             image: users.image,
             passwordHash: users.passwordHash,
+            tokenVersion: users.tokenVersion,
           })
           .from(users)
           .where(eq(users.email, parsed.data.email))
@@ -65,10 +67,54 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           email: user.email,
           image: user.image,
+          tokenVersion: user.tokenVersion,
         };
       },
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    async signIn({ user, account }) {
+      if (account?.provider && account.provider !== "credentials") {
+        const normalizedEmail = user.email?.trim().toLowerCase() ?? "";
+        if (!normalizedEmail) {
+          return false;
+        }
+
+        const existing = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, normalizedEmail))
+          .limit(1);
+
+        return canOAuthSignIn({
+          email: normalizedEmail,
+          hasExistingAccount: existing.length > 0,
+        });
+      }
+      return true;
+    },
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+        if (typeof user.tokenVersion === "number") {
+          token.tokenVersion = user.tokenVersion;
+        } else {
+          try {
+            const [row] = await db
+              .select({ tokenVersion: users.tokenVersion })
+              .from(users)
+              .where(eq(users.id, user.id))
+              .limit(1);
+            token.tokenVersion = row?.tokenVersion ?? 1;
+          } catch {
+            token.tokenVersion = 1;
+          }
+        }
+      }
+      return token;
+    },
+  },
   events: {
     async createUser({ user }) {
       if (user.id) {
