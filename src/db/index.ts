@@ -10,11 +10,16 @@ const globalForDb = globalThis as unknown as {
 function createPool(): Pool {
   const connectionString = process.env.DATABASE_URL;
   if (connectionString) {
+    const isLocal =
+      connectionString.includes("localhost") ||
+      connectionString.includes("127.0.0.1") ||
+      connectionString.includes("moneyflow-postgres");
     return new Pool({
       connectionString,
       max: process.env.NODE_ENV === "production" ? 5 : 10,
       idleTimeoutMillis: 20_000,
       connectionTimeoutMillis: 10_000,
+      ssl: isLocal ? undefined : { rejectUnauthorized: false },
     });
   }
 
