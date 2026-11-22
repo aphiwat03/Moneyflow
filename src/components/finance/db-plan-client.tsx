@@ -11,6 +11,7 @@ import {
   type SalaryAllocationFormInput,
   type SalarySettingsFormInput,
 } from "@/actions/salary-plan";
+import { useServerRefresh } from "@/lib/use-server-refresh";
 import type { ActionResult, SalaryPlanSummary, WalletDTO } from "@/lib/types";
 import { PlanView } from "./plan-view";
 
@@ -22,6 +23,7 @@ export function DbPlanClient({
   wallets: WalletDTO[];
 }) {
   const router = useRouter();
+  const { refreshAsync } = useServerRefresh();
 
   function handleChangeMonth(year: number, month: number) {
     router.push(`/plan?year=${year}&month=${month}`);
@@ -31,7 +33,7 @@ export function DbPlanClient({
     input: SalarySettingsFormInput
   ): Promise<ActionResult<unknown>> {
     const res = await saveSalarySettingsAction(input);
-    if (res.ok) router.refresh();
+    if (res.ok) await refreshAsync();
     return res;
   }
 
@@ -42,7 +44,7 @@ export function DbPlanClient({
     const res = editingId
       ? await updateSalaryAllocationAction(editingId, input)
       : await createSalaryAllocationAction(input);
-    if (res.ok) router.refresh();
+    if (res.ok) await refreshAsync();
     return res;
   }
 
@@ -50,7 +52,7 @@ export function DbPlanClient({
     allocationId: string
   ): Promise<ActionResult<unknown>> {
     const res = await deleteSalaryAllocationAction(allocationId);
-    if (res.ok) router.refresh();
+    if (res.ok) await refreshAsync();
     return res;
   }
 
@@ -59,7 +61,7 @@ export function DbPlanClient({
     replaceExisting?: boolean;
   }): Promise<ActionResult<unknown>> {
     const res = await applyRecommendedSplitAction(params);
-    if (res.ok) router.refresh();
+    if (res.ok) await refreshAsync();
     return res;
   }
 
@@ -68,7 +70,7 @@ export function DbPlanClient({
     month: number;
   }) {
     const res = await executeMonthlyAllocationTransfersAction(params);
-    if (res.ok) router.refresh();
+    if (res.ok) await refreshAsync();
     return res;
   }
 

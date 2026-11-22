@@ -66,6 +66,28 @@ export function PlanAllocationsList({
     summary.hasSalaryConfigured && summary.allocations.length === 0
   );
   const [applyingPreset, setApplyingPreset] = useState<string | null>(null);
+  const [busyAllocAction, setBusyAllocAction] = useState<{
+    id: string;
+    type: "toggle" | "delete";
+  } | null>(null);
+
+  async function handleToggleRow(item: ComputedAllocationItem) {
+    setBusyAllocAction({ id: item.id, type: "toggle" });
+    try {
+      await onToggleActive(item);
+    } finally {
+      setBusyAllocAction(null);
+    }
+  }
+
+  async function handleDeleteRow(item: ComputedAllocationItem) {
+    setBusyAllocAction({ id: item.id, type: "delete" });
+    try {
+      await onDelete(item);
+    } finally {
+      setBusyAllocAction(null);
+    }
+  }
 
   const recommendedSplits = useMemo(
     () => computeRecommendedSalarySplits(draftTotalIncome),
@@ -223,15 +245,15 @@ export function PlanAllocationsList({
                         type="button"
                         variant="secondary"
                         size="sm"
+                        loading={applyingPreset === preset.id}
+                        loadingText="กำลังบันทึก..."
                         disabled={applyingPreset !== null}
                         onClick={() => handleApplyPreset(preset.id)}
                         className="w-full"
                       >
-                        {applyingPreset === preset.id
-                          ? "กำลังสร้างแผน..."
-                          : summary.allocations.length > 0
-                            ? "เปลี่ยนมาใช้แผนนี้"
-                            : "ใช้แผนแนะนำนี้เลย"}
+                        {summary.allocations.length > 0
+                          ? "เปลี่ยนมาใช้แผนนี้"
+                          : "ใช้แผนแนะนำนี้เลย"}
                       </Button>
                     </div>
                   ))}
@@ -342,7 +364,12 @@ export function PlanAllocationsList({
                             className="max-lg:size-9 text-destructive hover:text-destructive"
                             aria-label="ลบเป้าหมาย"
                             title="ลบ"
-                            onClick={() => onDelete(item)}
+                            loading={
+                              busyAllocAction?.id === item.id &&
+                              busyAllocAction.type === "delete"
+                            }
+                            disabled={busyAllocAction?.id === item.id}
+                            onClick={() => handleDeleteRow(item)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -419,7 +446,13 @@ export function PlanAllocationsList({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => onToggleActive(item)}
+                        loading={
+                          busyAllocAction?.id === item.id &&
+                          busyAllocAction.type === "toggle"
+                        }
+                        loadingText="กำลังบันทึก..."
+                        disabled={busyAllocAction?.id === item.id}
+                        onClick={() => handleToggleRow(item)}
                         className="h-7 text-xs text-muted-foreground"
                       >
                         {item.isActive ? "พักก้อนนี้ชั่วคราว" : "เปิดใช้งานอีกครั้ง"}

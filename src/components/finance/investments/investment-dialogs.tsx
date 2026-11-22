@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type {
   InvestmentHoldingFormInput,
   InvestmentSnapshotFormInput,
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { AppDatePicker, AppMonthPicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { AppSelect } from "@/components/ui/select";
+import { SmoothExpand } from "@/components/ui/smooth-expand";
 import { toDecimal } from "@/lib/decimal";
 import type {
   CategoryDTO,
@@ -132,6 +134,15 @@ function HoldingFormBody({
   const [hNote, setHNote] = useState(editingHolding?.note ?? "");
   const [hColor, setHColor] = useState(editingHolding?.color ?? defaultColor);
   const [hError, setHError] = useState<string | null>(null);
+  const [trackingOpen, setTrackingOpen] = useState(() =>
+    Boolean(
+      editingHolding &&
+        (toDecimal(editingHolding.investedCost).gt(0) ||
+          toDecimal(editingHolding.currentValue).gt(0) ||
+          toDecimal(editingHolding.dividendsReceived).gt(0) ||
+          Boolean(editingHolding.units && toDecimal(editingHolding.units).gt(0)))
+    )
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -289,110 +300,134 @@ function HoldingFormBody({
         </div>
       </div>
 
-      {/* Part 2: Future Manual Tracking Fields */}
-      <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
-        <div>
-          <p className="text-xs font-semibold text-foreground">
-            2. ช่องกรอกยอดจริง (สำหรับอนาคตเมื่อเริ่มซื้อจริง — ใส่ 0 ไว้ก่อนได้)
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            ดูตัวเลขจากแอปโบรคเกอร์มากรอกอัปเดตเมื่อไหร่ก็ได้
-            ระบบจะคำนวณกำไร/ขาดทุนให้ทันที
-          </p>
-        </div>
+      {/* Part 2: Collapsible Future Manual Tracking Fields */}
+      <div className="rounded-xl border border-dashed bg-muted/25 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => setTrackingOpen((prev) => !prev)}
+          aria-expanded={trackingOpen}
+          className="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold text-foreground"
+        >
+          <span>2. ช่องกรอกยอดจริง (ไม่บังคับ — ใส่ 0 ไว้ก่อนได้)</span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              trackingOpen && "rotate-180"
+            )}
+          />
+        </button>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="h-cost" className="text-xs">
-              เงินต้นที่ลงไปแล้ว (บาท)
-            </Label>
-            <Input
-              id="h-cost"
-              inputMode="decimal"
-              value={hInvestedCost}
-              onChange={(e) => setHInvestedCost(e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="h-val" className="text-xs">
-              มูลค่าพอร์ตจริงตอนนี้ (บาท)
-            </Label>
-            <Input
-              id="h-val"
-              inputMode="decimal"
-              value={hCurrentValue}
-              onChange={(e) => setHCurrentValue(e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="h-div" className="text-xs">
-              ปันผลรับสะสม (บาท)
-            </Label>
-            <Input
-              id="h-div"
-              inputMode="decimal"
-              value={hDividends}
-              onChange={(e) => setHDividends(e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-        </div>
+        <SmoothExpand watchKey={trackingOpen ? "open" : "closed"}>
+          {trackingOpen ? (
+            <div className="mt-2.5 space-y-3 border-t border-border/60 pt-2.5">
+              <p className="text-[11px] text-muted-foreground">
+                ดูตัวเลขจากแอปโบรคเกอร์มากรอกอัปเดตเมื่อไหร่ก็ได้
+                ระบบจะคำนวณกำไร/ขาดทุนให้ทันที
+              </p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="h-units" className="text-xs">
-              จำนวนหน่วย / หุ้นที่ถือ (ไม่บังคับ — ใช้ดึงราคาตลาด)
-            </Label>
-            <Input
-              id="h-units"
-              inputMode="decimal"
-              value={hUnits}
-              onChange={(e) => setHUnits(e.target.value)}
-              placeholder="เช่น 2.5"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="h-currency" className="text-xs">
-              สกุลเงินราคาตลาด
-            </Label>
-            <AppSelect
-              id="h-currency"
-              value={hCurrency}
-              onValueChange={(val) => setHCurrency(val as InvestmentCurrency)}
-              options={[
-                { value: "THB", label: "THB (บาท — หุ้นไทย/กองทุนไทย)" },
-                { value: "USD", label: "USD (ดอลลาร์ — ETF/หุ้นอเมริกา)" },
-              ]}
-            />
-          </div>
-        </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor="h-cost" className="text-xs">
+                    เงินต้นที่ลงไปแล้ว (บาท)
+                  </Label>
+                  <Input
+                    id="h-cost"
+                    inputMode="decimal"
+                    value={hInvestedCost}
+                    onChange={(e) => setHInvestedCost(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="h-val" className="text-xs">
+                    มูลค่าพอร์ตจริงตอนนี้ (บาท)
+                  </Label>
+                  <Input
+                    id="h-val"
+                    inputMode="decimal"
+                    value={hCurrentValue}
+                    onChange={(e) => setHCurrentValue(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="h-div" className="text-xs">
+                    ปันผลรับสะสม (บาท)
+                  </Label>
+                  <Input
+                    id="h-div"
+                    inputMode="decimal"
+                    value={hDividends}
+                    onChange={(e) => setHDividends(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="h-broker" className="text-xs">
-              แอป / โบรคเกอร์ที่ใช้ (ไม่บังคับ)
-            </Label>
-            <Input
-              id="h-broker"
-              value={hBroker}
-              onChange={(e) => setHBroker(e.target.value)}
-              placeholder="เช่น Dime, InnovestX, Finnomena"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="h-note" className="text-xs">
-              หมายเหตุ / แผนการซื้อ (ไม่บังคับ)
-            </Label>
-            <Input
-              id="h-note"
-              value={hNote}
-              onChange={(e) => setHNote(e.target.value)}
-              placeholder="เช่น ซื้อทุกวันที่ 25"
-            />
-          </div>
-        </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="h-units" className="text-xs">
+                    จำนวนหน่วย / หุ้นที่ถือ (ใช้ดึงราคาตลาด)
+                  </Label>
+                  <Input
+                    id="h-units"
+                    inputMode="decimal"
+                    value={hUnits}
+                    onChange={(e) => setHUnits(e.target.value)}
+                    placeholder="เช่น 2.5"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="h-currency" className="text-xs">
+                    สกุลเงินราคาตลาด
+                  </Label>
+                  <AppSelect
+                    id="h-currency"
+                    value={hCurrency}
+                    onValueChange={(val) =>
+                      setHCurrency(val as InvestmentCurrency)
+                    }
+                    options={[
+                      {
+                        value: "THB",
+                        label: "THB (บาท — หุ้นไทย/กองทุนไทย)",
+                      },
+                      {
+                        value: "USD",
+                        label: "USD (ดอลลาร์ — ETF/หุ้นอเมริกา)",
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="h-broker" className="text-xs">
+                    แอป / โบรคเกอร์ที่ใช้ (ไม่บังคับ)
+                  </Label>
+                  <Input
+                    id="h-broker"
+                    value={hBroker}
+                    onChange={(e) => setHBroker(e.target.value)}
+                    placeholder="เช่น Dime, InnovestX, Finnomena"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="h-note" className="text-xs">
+                    หมายเหตุ / แผนการซื้อ (ไม่บังคับ)
+                  </Label>
+                  <Input
+                    id="h-note"
+                    value={hNote}
+                    onChange={(e) => setHNote(e.target.value)}
+                    placeholder="เช่น ซื้อทุกวันที่ 25"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </SmoothExpand>
       </div>
 
       {/* Color Swatches */}
@@ -418,12 +453,18 @@ function HoldingFormBody({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isMutating}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
         <Button
           type="submit"
-          disabled={isMutating}
+          loading={isMutating}
+          loadingText="กำลังบันทึก..."
           className="bg-teal-700 text-white hover:bg-teal-800"
         >
           {editingHolding ? "บันทึกการแก้ไข" : "เพิ่มเข้าพอร์ต"}
@@ -602,12 +643,18 @@ function SnapshotFormBody({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isMutating}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
         <Button
           type="submit"
-          disabled={isMutating}
+          loading={isMutating}
+          loadingText="กำลังบันทึก..."
           className="bg-teal-700 text-white hover:bg-teal-800"
         >
           บันทึกยอดเดือนนี้
@@ -899,15 +946,21 @@ function DcaFormBody({
       ) : null}
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isMutating}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
         <Button
           type="submit"
-          disabled={isMutating}
+          loading={isMutating}
+          loadingText="กำลังบันทึก..."
           className="bg-teal-700 text-white hover:bg-teal-800"
         >
-          {isMutating ? "กำลังบันทึก..." : "ยืนยันบันทึกซื้อ DCA"}
+          ยืนยันบันทึกซื้อ DCA
         </Button>
       </DialogFooter>
     </form>
@@ -1137,15 +1190,21 @@ function DividendFormBody({
       ) : null}
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isMutating}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
         <Button
           type="submit"
-          disabled={isMutating}
+          loading={isMutating}
+          loadingText="กำลังบันทึก..."
           className="bg-teal-700 text-white hover:bg-teal-800"
         >
-          {isMutating ? "กำลังบันทึก..." : "บันทึกเงินปันผล"}
+          บันทึกเงินปันผล
         </Button>
       </DialogFooter>
     </form>

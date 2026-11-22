@@ -116,6 +116,10 @@ export function ManageWalletsSection({
   const [actualBalanceInput, setActualBalanceInput] = useState("0.00");
   const [adjustError, setAdjustError] = useState<string | null>(null);
   const [adjustSaving, setAdjustSaving] = useState(false);
+  const [busyWalletAction, setBusyWalletAction] = useState<{
+    id: string;
+    type: "archive" | "delete";
+  } | null>(null);
 
   const visibleWallets = wallets.filter(
     (w) => showArchived || !w.isArchived
@@ -205,20 +209,41 @@ export function ManageWalletsSection({
     }
   }
 
+  async function handleToggleArchiveClick(wallet: WalletDTO) {
+    onNotify(null);
+    setBusyWalletAction({ id: wallet.id, type: "archive" });
+    try {
+      const res = await onToggleArchiveWallet(wallet.id, !wallet.isArchived);
+      if (!res.ok) {
+        onNotify({
+          type: "error",
+          message: res.error ?? "อัปเดตสถานะกระเป๋าเงินไม่สำเร็จ",
+        });
+      }
+    } finally {
+      setBusyWalletAction(null);
+    }
+  }
+
   async function handleDeleteWalletClick(wallet: WalletDTO) {
     if (!onDeleteWallet) return;
     onNotify(null);
-    const res = await onDeleteWallet(wallet.id);
-    if (!res.ok) {
-      onNotify({
-        type: "error",
-        message: res.error ?? "ลบกระเป๋าเงินไม่สำเร็จ",
-      });
-    } else {
-      onNotify({
-        type: "success",
-        message: `ลบกระเป๋าเงิน "${wallet.name}" เรียบร้อยแล้ว`,
-      });
+    setBusyWalletAction({ id: wallet.id, type: "delete" });
+    try {
+      const res = await onDeleteWallet(wallet.id);
+      if (!res.ok) {
+        onNotify({
+          type: "error",
+          message: res.error ?? "ลบกระเป๋าเงินไม่สำเร็จ",
+        });
+      } else {
+        onNotify({
+          type: "success",
+          message: `ลบกระเป๋าเงิน "${wallet.name}" เรียบร้อยแล้ว`,
+        });
+      }
+    } finally {
+      setBusyWalletAction(null);
     }
   }
 
@@ -316,9 +341,12 @@ export function ManageWalletsSection({
                             wallet.isArchived ? "กู้คืนกระเป๋า" : "ซ่อนกระเป๋า"
                           }
                           title={wallet.isArchived ? "กู้คืน" : "ซ่อนไว้ (Archive)"}
-                          onClick={() =>
-                            onToggleArchiveWallet(wallet.id, !wallet.isArchived)
+                          loading={
+                            busyWalletAction?.id === wallet.id &&
+                            busyWalletAction.type === "archive"
                           }
+                          disabled={busyWalletAction?.id === wallet.id}
+                          onClick={() => handleToggleArchiveClick(wallet)}
                         >
                           {wallet.isArchived ? (
                             <ArchiveRestore className="h-3.5 w-3.5" />
@@ -334,6 +362,11 @@ export function ManageWalletsSection({
                             aria-label="ลบกระเป๋าเงิน"
                             title="ลบถาวร (เฉพาะกระเป๋าที่ยังไม่มีรายการ)"
                             className="ml-0.5 text-destructive hover:text-destructive max-lg:size-9"
+                            loading={
+                              busyWalletAction?.id === wallet.id &&
+                              busyWalletAction.type === "delete"
+                            }
+                            disabled={busyWalletAction?.id === wallet.id}
                             onClick={() => handleDeleteWalletClick(wallet)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -541,12 +574,17 @@ export function ManageWalletsSection({
               <Button
                 type="button"
                 variant="outline"
+                disabled={walletSaving}
                 onClick={() => setWalletDialogOpen(false)}
               >
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={walletSaving}>
-                {walletSaving ? "กำลังบันทึก..." : "บันทึก"}
+              <Button
+                type="submit"
+                loading={walletSaving}
+                loadingText="กำลังบันทึก..."
+              >
+                บันทึก
               </Button>
             </DialogFooter>
           </form>
@@ -610,12 +648,17 @@ export function ManageWalletsSection({
               <Button
                 type="button"
                 variant="outline"
+                disabled={adjustSaving}
                 onClick={() => setAdjustingWallet(null)}
               >
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={adjustSaving}>
-                {adjustSaving ? "กำลังปรับยอด..." : "ยืนยันการปรับยอด"}
+              <Button
+                type="submit"
+                loading={adjustSaving}
+                loadingText="กำลังบันทึก..."
+              >
+                ยืนยันการปรับยอด
               </Button>
             </DialogFooter>
           </form>

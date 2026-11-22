@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Coins,
   History,
-  Loader2,
   Pencil,
   Plus,
   RefreshCw,
@@ -102,6 +101,34 @@ export function InvestmentHoldingsSection({
   onUseSnapshotAsPrincipal,
 }: InvestmentHoldingsSectionProps) {
   const [dcaLogsExpanded, setDcaLogsExpanded] = useState(false);
+  const [busyDeleteKey, setBusyDeleteKey] = useState<string | null>(null);
+
+  async function handleDeleteDcaLogClick(log: InvestmentDcaLogDTO) {
+    setBusyDeleteKey(`dca:${log.id}`);
+    try {
+      await onDeleteDcaLog(log);
+    } finally {
+      setBusyDeleteKey(null);
+    }
+  }
+
+  async function handleDeleteHoldingClick(id: string) {
+    setBusyDeleteKey(`holding:${id}`);
+    try {
+      await onDeleteHolding(id);
+    } finally {
+      setBusyDeleteKey(null);
+    }
+  }
+
+  async function handleDeleteSnapshotClick(id: string) {
+    setBusyDeleteKey(`snap:${id}`);
+    try {
+      await onDeleteSnapshot(id);
+    } finally {
+      setBusyDeleteKey(null);
+    }
+  }
 
   return (
     <>
@@ -263,8 +290,9 @@ export function InvestmentHoldingsSection({
                           type="button"
                           variant="ghost"
                           size="icon-sm"
+                          loading={busyDeleteKey === `dca:${log.id}`}
                           disabled={isMutating}
-                          onClick={() => onDeleteDcaLog(log)}
+                          onClick={() => handleDeleteDcaLogClick(log)}
                           aria-label={`ลบประวัติ DCA ${log.holdingSymbol}`}
                           title="ยกเลิกและปรับยอดคืน"
                           className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
@@ -300,15 +328,13 @@ export function InvestmentHoldingsSection({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={isRefreshingPrices || isMutating}
+                loading={isRefreshingPrices}
+                loadingText="กำลังดำเนินการ..."
+                disabled={isMutating}
                 onClick={onRefreshPrices}
                 className="flex-1 gap-1.5 sm:flex-none"
               >
-                {isRefreshingPrices ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5 text-teal-600" />
-                )}
+                <RefreshCw className="h-3.5 w-3.5 text-teal-600" />
                 <span>อัปเดตราคาตลาด</span>
               </Button>
             ) : null}
@@ -412,7 +438,9 @@ export function InvestmentHoldingsSection({
                             className="max-lg:size-9 text-destructive hover:text-destructive"
                             aria-label={`ลบ ${item.symbol}`}
                             title="ลบออก"
-                            onClick={() => onDeleteHolding(item.id)}
+                            loading={busyDeleteKey === `holding:${item.id}`}
+                            disabled={isMutating}
+                            onClick={() => handleDeleteHoldingClick(item.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -632,7 +660,9 @@ export function InvestmentHoldingsSection({
                             size="icon-sm"
                             aria-label="ลบบันทึกเดือนนี้"
                             className="size-9 text-destructive hover:text-destructive"
-                            onClick={() => onDeleteSnapshot(snap.id)}
+                            loading={busyDeleteKey === `snap:${snap.id}`}
+                            disabled={isMutating}
+                            onClick={() => handleDeleteSnapshotClick(snap.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -749,7 +779,9 @@ export function InvestmentHoldingsSection({
                                 size="icon-sm"
                                 aria-label="ลบบันทึกเดือนนี้"
                                 className="text-destructive hover:text-destructive"
-                                onClick={() => onDeleteSnapshot(snap.id)}
+                                loading={busyDeleteKey === `snap:${snap.id}`}
+                                disabled={isMutating}
+                                onClick={() => handleDeleteSnapshotClick(snap.id)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>

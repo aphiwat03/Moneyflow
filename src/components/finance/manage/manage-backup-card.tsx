@@ -165,15 +165,13 @@ export function ManageBackupCard({
                 type="button"
                 variant="outline"
                 onClick={handleExportFullBackupClick}
-                disabled={backupExporting || backupRestoring}
+                loading={backupExporting}
+                loadingText="กำลังสร้างไฟล์..."
+                disabled={backupRestoring}
                 className="h-auto min-h-10 w-full max-w-full gap-1.5 py-2 text-left whitespace-normal sm:w-auto"
               >
                 <Download className="h-4 w-4 shrink-0" />
-                <span>
-                  {backupExporting
-                    ? "กำลังสร้างไฟล์สำรอง..."
-                    : "ดาวน์โหลดไฟล์สำรองข้อมูล (.json สำหรับย้ายเครื่อง)"}
-                </span>
+                <span>ดาวน์โหลดไฟล์สำรองข้อมูล (.json สำหรับย้ายเครื่อง)</span>
               </Button>
             ) : null}
 
@@ -281,10 +279,11 @@ export function ManageBackupCard({
             <Button
               type="button"
               onClick={handleConfirmRestoreBackup}
-              disabled={backupRestoring}
+              loading={backupRestoring}
+              loadingText="กำลังกู้คืนข้อมูล..."
               className="bg-teal-700 text-white hover:bg-teal-800"
             >
-              {backupRestoring ? "กำลังกู้คืนข้อมูล..." : "ยืนยันกู้คืนข้อมูลทั้งหมด"}
+              ยืนยันกู้คืนข้อมูลทั้งหมด
             </Button>
           </DialogFooter>
         </DialogContent>

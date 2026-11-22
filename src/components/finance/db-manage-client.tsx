@@ -17,6 +17,7 @@ import {
   updateWalletAction,
 } from "@/actions/wallets";
 import { saveSalarySettingsAction } from "@/actions/salary-plan";
+import { useServerRefresh } from "@/lib/use-server-refresh";
 import type { CategoryDTO, SalarySettingsDTO, WalletDTO } from "@/lib/types";
 import { ManageView } from "./manage-view";
 
@@ -35,6 +36,7 @@ export function DbManageClient({
   };
 }) {
   const router = useRouter();
+  const { refreshAsync } = useServerRefresh();
 
   return (
     <ManageView
@@ -44,57 +46,57 @@ export function DbManageClient({
       userProfile={userProfile}
       onSaveSalarySettings={async (input) => {
         const res = await saveSalarySettingsAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onCreateWallet={async (input) => {
         const res = await createWalletAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onUpdateWallet={async (id, input) => {
         const res = await updateWalletAction(id, input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onToggleArchiveWallet={async (id, isArchived) => {
         const res = await toggleArchiveWalletAction(id, isArchived);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onDeleteWallet={async (id) => {
         const res = await deleteWalletAction(id);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onAdjustWalletBalance={async (input) => {
         const res = await adjustWalletBalanceAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onCreateCategory={async (input) => {
         const res = await createCategoryAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onUpdateCategory={async (id, input) => {
         const res = await updateCategoryAction(id, input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onToggleArchiveCategory={async (id, isArchived) => {
         const res = await toggleArchiveCategoryAction(id, isArchived);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onDeleteCategory={async (id) => {
         const res = await deleteCategoryAction(id);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onUpdateProfile={async (input) => {
         const res = await updateProfileAction(input);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
       onChangePassword={async (input) => {
@@ -102,9 +104,9 @@ export function DbManageClient({
         if (res.ok) {
           if (res.data?.signedOut) {
             router.replace("/login?reason=password_changed");
-            router.refresh();
+            await refreshAsync();
           } else {
-            router.refresh();
+            await refreshAsync();
           }
         }
         return res;
@@ -112,7 +114,7 @@ export function DbManageClient({
       onExportFullBackup={() => exportUserBackupAction()}
       onRestoreFullBackup={async (bundle) => {
         const res = await restoreUserBackupAction(bundle);
-        if (res.ok) router.refresh();
+        if (res.ok) await refreshAsync();
         return res;
       }}
     />

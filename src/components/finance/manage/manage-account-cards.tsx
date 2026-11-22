@@ -138,8 +138,13 @@ export function ManageAccountCards({
                   required
                 />
               </div>
-              <Button type="submit" size="sm" disabled={profileSaving}>
-                {profileSaving ? "กำลังบันทึก..." : "บันทึกชื่อโปรไฟล์"}
+              <Button
+                type="submit"
+                size="sm"
+                loading={profileSaving}
+                loadingText="กำลังบันทึก..."
+              >
+                บันทึกชื่อโปรไฟล์
               </Button>
             </form>
           </CardContent>
@@ -193,8 +198,13 @@ export function ManageAccountCards({
                   />
                 </div>
               </div>
-              <Button type="submit" size="sm" disabled={passwordSaving}>
-                {passwordSaving ? "กำลังเปลี่ยนรหัสผ่าน..." : "เปลี่ยนรหัสผ่าน"}
+              <Button
+                type="submit"
+                size="sm"
+                loading={passwordSaving}
+                loadingText="กำลังบันทึก..."
+              >
+                เปลี่ยนรหัสผ่าน
               </Button>
             </form>
           </CardContent>

@@ -177,11 +177,13 @@ export function TransactionsView({
             type="button"
             variant="outline"
             onClick={handleExportClick}
-            disabled={isExporting || filtered.length === 0}
+            loading={isExporting}
+            loadingText="กำลังสร้างไฟล์..."
+            disabled={filtered.length === 0}
             className="gap-1.5"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            <span>{isExporting ? "กำลังสร้างไฟล์..." : "Export .xlsx"}</span>
+            <span>Export .xlsx</span>
           </Button>
 
           <Button
@@ -303,6 +305,7 @@ export function TransactionsView({
             <Button
               type="button"
               variant="outline"
+              disabled={isDeleting}
               onClick={() => setDeletingTx(null)}
             >
               ยกเลิก
@@ -310,10 +313,11 @@ export function TransactionsView({
             <Button
               type="button"
               variant="destructive"
-              disabled={isDeleting}
+              loading={isDeleting}
+              loadingText="กำลังลบ..."
               onClick={handleConfirmDelete}
             >
-              {isDeleting ? "กำลังลบ..." : "ลบรายการ"}
+              ลบรายการ
             </Button>
           </DialogFooter>
         </DialogContent>

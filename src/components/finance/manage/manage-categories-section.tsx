@@ -97,6 +97,10 @@ export function ManageCategoriesSection({
   const [catColor, setCatColor] = useState(COLOR_PRESETS[4]);
   const [catError, setCatError] = useState<string | null>(null);
   const [catSaving, setCatSaving] = useState(false);
+  const [busyCategoryAction, setBusyCategoryAction] = useState<{
+    id: string;
+    type: "archive" | "delete";
+  } | null>(null);
 
   function openAddCategory(defaultType: CategoryType) {
     setEditingCategory(null);
@@ -149,20 +153,41 @@ export function ManageCategoriesSection({
     }
   }
 
+  async function handleToggleArchiveCategoryClick(cat: CategoryDTO) {
+    onNotify(null);
+    setBusyCategoryAction({ id: cat.id, type: "archive" });
+    try {
+      const res = await onToggleArchiveCategory(cat.id, !cat.isArchived);
+      if (!res.ok) {
+        onNotify({
+          type: "error",
+          message: res.error ?? "อัปเดตสถานะหมวดหมู่ไม่สำเร็จ",
+        });
+      }
+    } finally {
+      setBusyCategoryAction(null);
+    }
+  }
+
   async function handleDeleteCategoryClick(cat: CategoryDTO) {
     if (!onDeleteCategory) return;
     onNotify(null);
-    const res = await onDeleteCategory(cat.id);
-    if (!res.ok) {
-      onNotify({
-        type: "error",
-        message: res.error ?? "ลบหมวดหมู่ไม่สำเร็จ",
-      });
-    } else {
-      onNotify({
-        type: "success",
-        message: `ลบหมวดหมู่ "${cat.name}" เรียบร้อยแล้ว`,
-      });
+    setBusyCategoryAction({ id: cat.id, type: "delete" });
+    try {
+      const res = await onDeleteCategory(cat.id);
+      if (!res.ok) {
+        onNotify({
+          type: "error",
+          message: res.error ?? "ลบหมวดหมู่ไม่สำเร็จ",
+        });
+      } else {
+        onNotify({
+          type: "success",
+          message: `ลบหมวดหมู่ "${cat.name}" เรียบร้อยแล้ว`,
+        });
+      }
+    } finally {
+      setBusyCategoryAction(null);
     }
   }
 
@@ -230,9 +255,12 @@ export function ManageCategoriesSection({
                       cat.isArchived ? "กู้คืนหมวดหมู่" : "ซ่อนหมวดหมู่"
                     }
                     title={cat.isArchived ? "กู้คืน" : "ซ่อนไว้ (Archive)"}
-                    onClick={() =>
-                      onToggleArchiveCategory(cat.id, !cat.isArchived)
+                    loading={
+                      busyCategoryAction?.id === cat.id &&
+                      busyCategoryAction.type === "archive"
                     }
+                    disabled={busyCategoryAction?.id === cat.id}
+                    onClick={() => handleToggleArchiveCategoryClick(cat)}
                   >
                     {cat.isArchived ? (
                       <ArchiveRestore className="h-3.5 w-3.5" />
@@ -248,6 +276,11 @@ export function ManageCategoriesSection({
                       aria-label="ลบหมวดหมู่"
                       title="ลบถาวร (เฉพาะหมวดหมู่ที่ยังไม่มีรายการ)"
                       className="ml-0.5 text-destructive hover:text-destructive max-lg:size-9"
+                      loading={
+                        busyCategoryAction?.id === cat.id &&
+                        busyCategoryAction.type === "delete"
+                      }
+                      disabled={busyCategoryAction?.id === cat.id}
                       onClick={() => handleDeleteCategoryClick(cat)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -431,12 +464,17 @@ export function ManageCategoriesSection({
               <Button
                 type="button"
                 variant="outline"
+                disabled={catSaving}
                 onClick={() => setCatDialogOpen(false)}
               >
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={catSaving}>
-                {catSaving ? "กำลังบันทึก..." : "บันทึก"}
+              <Button
+                type="submit"
+                loading={catSaving}
+                loadingText="กำลังบันทึก..."
+              >
+                บันทึก
               </Button>
             </DialogFooter>
           </form>

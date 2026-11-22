@@ -6,6 +6,7 @@ import {
   updateTransactionAction,
   type TransactionFormInput,
 } from "@/actions/transactions";
+import { useServerRefresh } from "@/lib/use-server-refresh";
 import type {
   ActionResult,
   CategoryDTO,
@@ -29,6 +30,7 @@ export function DbDashboardClient({
   categories: CategoryDTO[];
 }) {
   const router = useRouter();
+  const { refreshAsync } = useServerRefresh();
 
   function handleChangeMonth(year: number, month: number) {
     router.push(`/?year=${year}&month=${month}`);
@@ -43,7 +45,7 @@ export function DbDashboardClient({
       : await createTransactionAction(values);
 
     if (res.ok) {
-      router.refresh();
+      await refreshAsync();
     }
     return res;
   }

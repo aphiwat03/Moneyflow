@@ -219,19 +219,20 @@ export function CsvImportDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={isImporting}
             onClick={() => onOpenChange(false)}
           >
             ยกเลิก
           </Button>
           <Button
             type="button"
-            disabled={isImporting || validImportPayloads.length === 0}
+            loading={isImporting}
+            loadingText="กำลังนำเข้า..."
+            disabled={validImportPayloads.length === 0}
             onClick={handleConfirmImport}
             className="bg-teal-700 text-white hover:bg-teal-800"
           >
-            {isImporting
-              ? "กำลังนำเข้า..."
-              : `นำเข้า ${validImportPayloads.length} รายการ`}
+            นำเข้า {validImportPayloads.length} รายการ
           </Button>
         </DialogFooter>
       </DialogContent>

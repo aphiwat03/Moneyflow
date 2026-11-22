@@ -997,7 +997,8 @@ export function InvestmentsView({
             <Button
               type="button"
               size="sm"
-              disabled={isMutating}
+              loading={isMutating}
+              loadingText="กำลังนำเข้า..."
               onClick={handleImportLocalWorkspace}
               className="gap-1.5 bg-teal-700 text-white hover:bg-teal-800"
             >

@@ -133,8 +133,13 @@ export function LoginForm({
             ) : null}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
+          <Button
+            type="submit"
+            className="w-full"
+            loading={isPending}
+            loadingText="กำลังเข้าสู่ระบบ..."
+          >
+            เข้าสู่ระบบ
           </Button>
         </form>
 
@@ -316,8 +321,13 @@ export function RegisterForm({
             ) : null}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "กำลังสร้างบัญชี..." : "สมัครใช้งาน"}
+          <Button
+            type="submit"
+            className="w-full"
+            loading={isPending}
+            loadingText="กำลังสร้างบัญชี..."
+          >
+            สมัครใช้งาน
           </Button>
         </form>
 

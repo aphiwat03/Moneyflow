@@ -300,11 +300,20 @@ function PlanAllocationFormBody({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={allocSaving}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
-        <Button type="submit" disabled={allocSaving}>
-          {allocSaving ? "กำลังบันทึก..." : "บันทึกเป้าหมาย"}
+        <Button
+          type="submit"
+          loading={allocSaving}
+          loadingText="กำลังบันทึก..."
+        >
+          บันทึกเป้าหมาย
         </Button>
       </DialogFooter>
     </form>
@@ -420,17 +429,19 @@ export function PlanTransferConfirmDialog({
           <Button
             type="button"
             variant="outline"
+            disabled={transferring}
             onClick={() => onOpenChange(false)}
           >
             ยกเลิก
           </Button>
           <Button
             type="button"
-            disabled={transferring}
+            loading={transferring}
+            loadingText="กำลังดำเนินการ..."
             onClick={onConfirm}
             className="bg-sky-600 text-white hover:bg-sky-700"
           >
-            {transferring ? "กำลังสร้างรายการโอน..." : "ยืนยันโอนตามแผน"}
+            ยืนยันโอนตามแผน
           </Button>
         </DialogFooter>
       </DialogContent>

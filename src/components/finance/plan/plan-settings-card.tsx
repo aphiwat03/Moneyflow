@@ -284,10 +284,11 @@ export function PlanSettingsCard({
                 </p>
                 <Button
                   type="submit"
-                  disabled={settingsSaving}
+                  loading={settingsSaving}
+                  loadingText="กำลังบันทึก..."
                   className="h-10 bg-teal-700 px-6 text-white hover:bg-teal-800"
                 >
-                  {settingsSaving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
+                  บันทึกการตั้งค่า
                 </Button>
               </div>
             </form>

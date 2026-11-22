@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   bulkImportTransactionsAction,
   createTransactionAction,
@@ -8,6 +7,7 @@ import {
   updateTransactionAction,
   type TransactionFormInput,
 } from "@/actions/transactions";
+import { useServerRefresh } from "@/lib/use-server-refresh";
 import type {
   ActionResult,
   CategoryDTO,
@@ -28,7 +28,7 @@ export function DbTransactionsClient({
   categories: CategoryDTO[];
   initialOpenAdd?: boolean;
 }) {
-  const router = useRouter();
+  const { refreshAsync } = useServerRefresh();
 
   async function handleSaveTransaction(
     values: TransactionFormInput,
@@ -38,7 +38,7 @@ export function DbTransactionsClient({
       ? await updateTransactionAction(editingId, values)
       : await createTransactionAction(values);
     if (res.ok) {
-      router.refresh();
+      await refreshAsync();
     }
     return res;
   }
@@ -48,7 +48,7 @@ export function DbTransactionsClient({
   ): Promise<ActionResult<unknown>> {
     const res = await deleteTransactionAction(transactionId);
     if (res.ok) {
-      router.refresh();
+      await refreshAsync();
     }
     return res;
   }
@@ -89,7 +89,7 @@ export function DbTransactionsClient({
   async function handleImportTransactions(rows: TransactionFormInput[]) {
     const res = await bulkImportTransactionsAction(rows);
     if (res.ok) {
-      router.refresh();
+      await refreshAsync();
     }
     return res;
   }

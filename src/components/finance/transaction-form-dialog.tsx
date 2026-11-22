@@ -7,7 +7,6 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Camera,
-  Check,
   ChevronDown,
   Loader2,
   Sparkles,
@@ -125,15 +124,9 @@ function TransactionFormBody({
       w.id === initialTransaction?.toWalletId
   );
 
-  const [typeState, setTypeState] = useState<{
-    current: TransactionType;
-    direction: "left" | "right" | "none";
-  }>({
-    current: initialTransaction?.type ?? "expense",
-    direction: "none",
-  });
-
-  const type = typeState.current;
+  const [type, setType] = useState<TransactionType>(
+    initialTransaction?.type ?? "expense"
+  );
   const activeOption =
     TYPE_OPTIONS.find((opt) => opt.value === type) ?? TYPE_OPTIONS[0];
   const activeIndex = TYPE_ORDER[type];
@@ -447,8 +440,7 @@ function TransactionFormBody({
   function handleTypeChange(nextType: TransactionType) {
     if (nextType === type) return;
 
-    const direction = TYPE_ORDER[nextType] > TYPE_ORDER[type] ? "right" : "left";
-    setTypeState({ current: nextType, direction });
+    setType(nextType);
     setError(null);
 
     if (nextType === "transfer") {
@@ -519,18 +511,11 @@ function TransactionFormBody({
     }
   }
 
-  const slideAnimationClass =
-    typeState.direction === "right"
-      ? "animate-mf-slide-right"
-      : typeState.direction === "left"
-        ? "animate-mf-slide-left"
-        : "";
-
   return (
     <form
       onSubmit={handleFormSubmit}
       onPaste={handleFormPaste}
-      className="space-y-4"
+      className="space-y-3.5"
     >
       <div>
         {/* GPU-only Sliding Segmented Switch */}
@@ -719,7 +704,7 @@ function TransactionFormBody({
         <Label htmlFor="tx-amount">จำนวนเงิน (บาท)</Label>
 
         <div className="relative">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
+          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base font-semibold text-muted-foreground">
             ฿
           </span>
           <Input
@@ -730,96 +715,73 @@ function TransactionFormBody({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             disabled={isScanningSlip}
-            className="h-12 pl-8 text-xl font-semibold tabular-nums lg:text-xl"
+            className="h-11 pl-8 text-lg font-semibold tabular-nums lg:text-lg"
             required
           />
         </div>
       </div>
 
-      {/* Persistent Source Wallet (stays mounted across tab changes) */}
-      <div className="space-y-1.5">
-        <Label htmlFor="tx-wallet">
-          {type === "transfer" ? "โอนจากกระเป๋า" : "กระเป๋าเงิน / บัญชี"}
-        </Label>
-        <AppSelect
-          id="tx-wallet"
-          value={walletId}
-          onValueChange={setWalletId}
-          placeholder="เลือกกระเป๋าเงิน"
-          options={activeWallets.map((w) => ({
-            value: w.id,
-            label: w.name,
-            dotColor: w.color ?? "#0f766e",
-            badge: `฿${formatMoneyDisplay(w.currentBalance)}`,
-          }))}
-        />
-      </div>
-
-      {/* Smoothly Expanding/Contracting Dynamic Section (zero leftover space) */}
-      <SmoothExpand watchKey={type} className="-mx-1">
-        <div key={type} className={cn("py-0.5", slideAnimationClass)}>
-          {type === "transfer" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-to-wallet">ไปยังกระเป๋า</Label>
-              <AppSelect
-                id="tx-to-wallet"
-                value={toWalletId}
-                onValueChange={setToWalletId}
-                placeholder="เลือกกระเป๋าปลายทาง"
-                options={activeWallets
-                  .filter((w) => w.id !== walletId)
-                  .map((w) => ({
-                    value: w.id,
-                    label: w.name,
-                    dotColor: w.color ?? "#0f766e",
-                    badge: `฿${formatMoneyDisplay(w.currentBalance)}`,
-                  }))}
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label>หมวดหมู่</Label>
-              {availableCategories.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  ยังไม่มีหมวดหมู่สำหรับประเภทนี้
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {availableCategories.map((cat) => {
-                    const selected = categoryId === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setCategoryId(cat.id)}
-                        className={cn(
-                          "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors duration-150 active:scale-[0.98]",
-                          selected
-                            ? "border-teal-700 bg-teal-700/10 text-teal-900 dark:border-teal-400 dark:bg-teal-500/15 dark:text-teal-200"
-                            : "border-border bg-background hover:bg-muted"
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{
-                              backgroundColor: cat.color ?? "#64748b",
-                            }}
-                          />
-                          <span className="truncate">{cat.name}</span>
-                        </span>
-                        {selected ? (
-                          <Check className="h-3.5 w-3.5 shrink-0 text-teal-700 dark:text-teal-400" />
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+      {/* Wallet & Category / To-Wallet in a single side-by-side row (compact, zero scroll) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="tx-wallet">
+            {type === "transfer" ? "โอนจากกระเป๋า" : "กระเป๋าเงิน / บัญชี"}
+          </Label>
+          <AppSelect
+            id="tx-wallet"
+            value={walletId}
+            onValueChange={setWalletId}
+            placeholder="เลือกกระเป๋าเงิน"
+            options={activeWallets.map((w) => ({
+              value: w.id,
+              label: w.name,
+              dotColor: w.color ?? "#0f766e",
+              badge: `฿${formatMoneyDisplay(w.currentBalance)}`,
+            }))}
+          />
         </div>
-      </SmoothExpand>
+
+        {type === "transfer" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="tx-to-wallet">ไปยังกระเป๋า</Label>
+            <AppSelect
+              id="tx-to-wallet"
+              value={toWalletId}
+              onValueChange={setToWalletId}
+              placeholder="เลือกกระเป๋าปลายทาง"
+              options={activeWallets
+                .filter((w) => w.id !== walletId)
+                .map((w) => ({
+                  value: w.id,
+                  label: w.name,
+                  dotColor: w.color ?? "#0f766e",
+                  badge: `฿${formatMoneyDisplay(w.currentBalance)}`,
+                }))}
+            />
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label htmlFor="tx-category">หมวดหมู่</Label>
+            {availableCategories.length === 0 ? (
+              <p className="flex h-10 items-center rounded-md border border-dashed px-3 text-xs text-muted-foreground">
+                ยังไม่มีหมวดหมู่สำหรับประเภทนี้
+              </p>
+            ) : (
+              <AppSelect
+                id="tx-category"
+                value={categoryId}
+                onValueChange={setCategoryId}
+                placeholder="เลือกหมวดหมู่"
+                options={availableCategories.map((cat) => ({
+                  value: cat.id,
+                  label: cat.name,
+                  dotColor: cat.color ?? "#64748b",
+                }))}
+              />
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Date, Time & Note */}
       <div className="space-y-3">
@@ -940,18 +902,26 @@ function TransactionFormBody({
         </SmoothExpand>
       </div>
 
-      <DialogFooter className="pt-2">
-        <Button type="button" variant="outline" onClick={onClose}>
+      <DialogFooter className="pt-1">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={onClose}
+        >
           ยกเลิก
         </Button>
-        <Button type="submit" disabled={isSubmitting || isScanningSlip}>
+        <Button
+          type="submit"
+          loading={isSubmitting}
+          loadingText="กำลังบันทึก..."
+          disabled={isScanningSlip}
+        >
           {isScanningSlip
             ? "กำลังอ่านสลิป..."
-            : isSubmitting
-              ? "กำลังบันทึก..."
-              : initialTransaction
-                ? "บันทึกการแก้ไข"
-                : "บันทึกรายการ"}
+            : initialTransaction
+              ? "บันทึกการแก้ไข"
+              : "บันทึกรายการ"}
         </Button>
       </DialogFooter>
     </form>
