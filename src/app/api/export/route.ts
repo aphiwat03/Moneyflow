@@ -66,6 +66,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const rawTag = sp.get("tag")?.trim();
+  if (rawTag && rawTag !== "all" && rawTag.length > 80) {
+    return NextResponse.json(
+      { error: "Invalid tag" },
+      { status: 400, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const rawQ = sp.get("q")?.trim();
   if (rawQ && rawQ.length > MAX_QUERY_LENGTH) {
     return NextResponse.json(
@@ -78,6 +86,7 @@ export async function GET(request: NextRequest) {
     type,
     walletId: rawWalletId,
     categoryId: rawCategoryId,
+    tag: rawTag || undefined,
     q: rawQ || undefined,
     startDate,
     endDate,

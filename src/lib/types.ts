@@ -60,6 +60,7 @@ export interface TransactionDTO {
   transactionTime?: string | null;
   createdAt?: string | null;
   note: string | null;
+  tag?: string | null;
   recipientName?: string | null;
   recipientBank?: string | null;
   recipientAccount?: string | null;
@@ -70,6 +71,7 @@ export interface TransactionFilterParams {
   type?: TransactionType | "all";
   walletId?: string;
   categoryId?: string;
+  tag?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
@@ -174,6 +176,7 @@ export interface SalaryPlanSummary {
   isOverAllocated: boolean;
   spendableBudget: string;
   periodIncome: string;
+  salaryReceivedThisPeriod: string;
   periodExpense: string;
   remainingToSpend: string;
   todayDate: string;

@@ -6,8 +6,10 @@ import {
   createSalaryAllocationAction,
   deleteSalaryAllocationAction,
   executeMonthlyAllocationTransfersAction,
+  recordSalaryReceiptAction,
   saveSalarySettingsAction,
   updateSalaryAllocationAction,
+  type RecordSalaryReceiptInput,
   type SalaryAllocationFormInput,
   type SalarySettingsFormInput,
 } from "@/actions/salary-plan";
@@ -74,6 +76,12 @@ export function DbPlanClient({
     return res;
   }
 
+  async function handleRecordSalaryReceipt(input: RecordSalaryReceiptInput) {
+    const res = await recordSalaryReceiptAction(input);
+    if (res.ok) await refreshAsync();
+    return res;
+  }
+
   return (
     <PlanView
       summary={summary}
@@ -84,6 +92,7 @@ export function DbPlanClient({
       onDeleteAllocation={handleDeleteAllocation}
       onApplyRecommendedSplit={handleApplyRecommendedSplit}
       onExecuteMonthlyTransfers={handleExecuteMonthlyTransfers}
+      onRecordSalaryReceipt={handleRecordSalaryReceipt}
     />
   );
 }

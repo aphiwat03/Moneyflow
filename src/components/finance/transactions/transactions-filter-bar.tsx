@@ -18,6 +18,7 @@ interface TransactionsFilterBarProps {
   filters: TransactionFilterParams;
   wallets: WalletDTO[];
   categories: CategoryDTO[];
+  availableTags: string[];
   viewMode: "list" | "daily" | "recipients";
   filteredCount: number;
   onUpdateFilters: (
@@ -31,6 +32,7 @@ export function TransactionsFilterBar({
   filters,
   wallets,
   categories,
+  availableTags,
   viewMode,
   filteredCount,
   onUpdateFilters,
@@ -45,7 +47,7 @@ export function TransactionsFilterBar({
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="ค้นหาหมายเหตุ, ผู้รับโอน, หมวดหมู่, กระเป๋า..."
+              placeholder="ค้นหาหมายเหตุ, แท็ก, ผู้รับโอน, หมวดหมู่, กระเป๋า..."
               value={filters.q ?? ""}
               onChange={(e) =>
                 onUpdateFilters((f) => ({ ...f, q: e.target.value }))
@@ -74,7 +76,7 @@ export function TransactionsFilterBar({
             />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <AppSelect
               ariaLabel="กรองตามกระเป๋าเงิน"
               value={filters.walletId ?? "all"}
@@ -83,7 +85,7 @@ export function TransactionsFilterBar({
               }
               className="lg:h-9"
               options={[
-                { value: "all", label: "ทุกกระเป๋าเงิน" },
+                { value: "all", label: "ทุกกระเป๋า" },
                 ...wallets.map((w) => ({
                   value: w.id,
                   label: w.name,
@@ -94,7 +96,7 @@ export function TransactionsFilterBar({
             />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <AppSelect
               ariaLabel="กรองตามหมวดหมู่"
               value={filters.categoryId ?? "all"}
@@ -109,6 +111,25 @@ export function TransactionsFilterBar({
                   label: c.name,
                   dotColor: c.color ?? "#64748b",
                   badge: c.type === "income" ? "รายรับ" : "รายจ่าย",
+                })),
+              ]}
+            />
+          </div>
+
+          <div className="lg:col-span-2">
+            <AppSelect
+              ariaLabel="กรองตามแท็ก"
+              value={filters.tag ?? "all"}
+              onValueChange={(nextValue) =>
+                onUpdateFilters((f) => ({ ...f, tag: nextValue }))
+              }
+              className="lg:h-9"
+              options={[
+                { value: "all", label: "ทุกแท็ก" },
+                ...availableTags.map((tagName) => ({
+                  value: tagName,
+                  label: `#${tagName}`,
+                  dotColor: "#0f766e",
                 })),
               ]}
             />

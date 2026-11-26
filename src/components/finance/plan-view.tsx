@@ -3,12 +3,18 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Banknote,
+  Bell,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Plus,
+  SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import type {
+  RecordSalaryReceiptInput,
   SalaryAllocationFormInput,
   SalarySettingsFormInput,
 } from "@/actions/salary-plan";
@@ -32,10 +38,14 @@ import type {
 import { cn } from "@/lib/utils";
 import {
   PlanAllocationDialog,
+  PlanReceiveSalaryDialog,
   PlanTransferConfirmDialog,
 } from "./plan/plan-allocation-dialog";
-import { PlanAllocationsList } from "./plan/plan-allocations-list";
-import { PlanSettingsCard } from "./plan/plan-settings-card";
+import {
+  PlanAllocationsList,
+  PlanRecommendationsDialog,
+} from "./plan/plan-allocations-list";
+import { PlanSettingsDialog } from "./plan/plan-settings-card";
 
 const THAI_MONTHS = [
   "มกราคม",
@@ -72,6 +82,9 @@ interface PlanViewProps {
     year: number;
     month: number;
   }) => Promise<ActionResult<{ createdCount: number; totalTransferred: string }>>;
+  onRecordSalaryReceipt?: (
+    input: RecordSalaryReceiptInput
+  ) => Promise<ActionResult<{ id: string; amount: string; walletName: string }>>;
 }
 
 export function PlanView({
@@ -83,6 +96,7 @@ export function PlanView({
   onDeleteAllocation,
   onApplyRecommendedSplit,
   onExecuteMonthlyTransfers,
+  onRecordSalaryReceipt,
 }: PlanViewProps) {
   const activeWallets = wallets.filter((w) => !w.isArchived);
   const monthLabel = `${THAI_MONTHS[summary.selectedMonth - 1]} ${summary.selectedYear + 543}`;
@@ -93,6 +107,11 @@ export function PlanView({
   const [extraIncomeInput, setExtraIncomeInput] = useState(
     toDecimal(summary.extraIncome).gt(0) ? summary.extraIncome : ""
   );
+
+  // Settings & Recommendations dialogs (less-frequently used tools)
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [settingsFormKey, setSettingsFormKey] = useState(0);
+  const [recommendationsOpen, setRecommendationsOpen] = useState(false);
 
   // Allocation dialog state
   const [allocDialogOpen, setAllocDialogOpen] = useState(false);
@@ -105,6 +124,10 @@ export function PlanView({
   // One-click transfer confirmation dialog
   const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
   const [transferring, setTransferring] = useState(false);
+
+  // Record actual salary receipt dialog
+  const [receiveSalaryOpen, setReceiveSalaryOpen] = useState(false);
+  const [receiveSalaryKey, setReceiveSalaryKey] = useState(0);
 
   const [notice, setNotice] = useState<{
     type: "error" | "success";
@@ -153,6 +176,36 @@ export function PlanView({
     } else {
       onChangeMonth(summary.selectedYear, summary.selectedMonth + 1);
     }
+  }
+
+  function openSettingsDialog() {
+    setSalaryInput(
+      toDecimal(summary.monthlySalary).gt(0) ? summary.monthlySalary : ""
+    );
+    setExtraIncomeInput(
+      toDecimal(summary.extraIncome).gt(0) ? summary.extraIncome : ""
+    );
+    setSettingsFormKey((k) => k + 1);
+    setSettingsDialogOpen(true);
+  }
+
+  function openReceiveSalaryDialog() {
+    setReceiveSalaryKey((k) => k + 1);
+    setReceiveSalaryOpen(true);
+  }
+
+  async function handleRecordSalaryReceipt(input: RecordSalaryReceiptInput) {
+    if (!onRecordSalaryReceipt) {
+      return { ok: false, error: "ยังไม่รองรับการบันทึกรับเงินเดือน" };
+    }
+    const res = await onRecordSalaryReceipt(input);
+    if (res.ok) {
+      setNotice({
+        type: "success",
+        message: `บันทึกรับเงินเดือน ฿${formatMoneyDisplay(res.data?.amount ?? input.amount)} เข้ากระเป๋า "${res.data?.walletName ?? summary.salaryWalletName ?? ""}" เรียบร้อยแล้ว`,
+      });
+    }
+    return res;
   }
 
   function openAddAllocation(bucket: PlanBucketType = "cold_money") {
@@ -253,8 +306,8 @@ export function PlanView({
 
   return (
     <div className="space-y-6">
-      {/* Header + Month Switcher + Add Goal */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header + Month Switcher + Compact Tools + Pending Transfer Notify + Add Goal */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             แผนเงินเดือน &amp; เป้าหมายออม
@@ -262,18 +315,23 @@ export function PlanView({
           <p className="text-sm text-muted-foreground">
             แบ่งเงินเย็น DCA ของที่อยากได้ และคำนวณงบคงเหลือใช้จริงต่อวัน
           </p>
-          <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
-            <CalendarDays className="h-3.5 w-3.5 text-teal-600" />
+          <button
+            type="button"
+            onClick={openSettingsDialog}
+            title="คลิกเพื่อแก้ไขวันเงินออกหรือรายได้"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-0.5 text-left text-xs text-muted-foreground tabular-nums transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-teal-600" />
             <span>
               เงินออกทุกวันที่ {summary.payday} • รอบคำนวณ{" "}
               {formatIsoDateForDisplay(summary.cycleStartDate)} –{" "}
               {formatIsoDateForDisplay(summary.cycleEndDate)} (
               {summary.daysInMonth} วัน)
             </span>
-          </p>
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <div className="flex items-center rounded-lg border bg-card p-0.5">
             <Button
               type="button"
@@ -300,8 +358,48 @@ export function PlanView({
             </Button>
           </div>
 
+          {summary.pendingTransferCount > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTransferConfirmOpen(true)}
+              title={`มีรายการออมรอโอนเดือนนี้ ${summary.pendingTransferCount} ก้อน รวม ฿${formatMoneyDisplay(summary.pendingTransferTotal)}`}
+              className="gap-1.5 border-sky-500/40 bg-sky-500/10 text-sky-700 hover:bg-sky-500/15 hover:text-sky-800 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-300"
+            >
+              <Bell className="h-3.5 w-3.5" />
+              <span>รอโอน</span>
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-600 px-1.5 text-[11px] font-semibold text-white tabular-nums">
+                {summary.pendingTransferCount}
+              </span>
+            </Button>
+          ) : null}
+
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            onClick={openSettingsDialog}
+            className="gap-1.5"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-teal-600" />
+            <span>ตั้งค่ารายได้</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRecommendationsOpen(true)}
+            className="gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-teal-600" />
+            <span>ช่วยคำนวณ</span>
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
             onClick={() => openAddAllocation("cold_money")}
             className="gap-1.5 bg-teal-700 text-white hover:bg-teal-800"
           >
@@ -325,46 +423,60 @@ export function PlanView({
         </div>
       ) : null}
 
-      {/* Fixed Monthly Salary & Extra Income Card */}
-      <PlanSettingsCard
-        summary={summary}
-        activeWallets={activeWallets}
-        salaryInput={salaryInput}
-        extraIncomeInput={extraIncomeInput}
-        draftTotalIncome={draftTotalIncome}
-        onSalaryInputChange={setSalaryInput}
-        onExtraIncomeInputChange={setExtraIncomeInput}
-        onSaveSettings={onSaveSettings}
-        onNotice={setNotice}
-      />
-
       {/* Main Waterfall & Daily Allowance Summary */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>
-              {toDecimal(summary.extraIncome).gt(0)
-                ? "1. รายได้รวมในแผน"
-                : "1. เงินเดือนคงที่"}
+            <CardDescription className="flex items-center justify-between gap-2">
+              <span>
+                {toDecimal(summary.extraIncome).gt(0)
+                  ? "1. รายได้รวมในแผน"
+                  : "1. เงินเดือนคงที่"}
+              </span>
+              {toDecimal(summary.monthlySalary).gt(0) &&
+              toDecimal(summary.salaryReceivedThisPeriod).gt(0) ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="h-3 w-3" />
+                  รับเงินเข้าแล้ว
+                </span>
+              ) : null}
             </CardDescription>
             <CardTitle className="text-2xl tabular-nums">
               ฿{formatMoneyDisplay(summary.totalPlannedIncome)}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground tabular-nums">
-            {toDecimal(summary.extraIncome).gt(0) ? (
-              <span>
-                เงินเดือน ฿{formatMoneyDisplay(summary.monthlySalary)} + เสริม ฿
-                {formatMoneyDisplay(summary.extraIncome)}
-                {toDecimal(summary.periodIncome).gt(0)
-                  ? ` • จดรับจริง +฿${formatMoneyDisplay(summary.periodIncome)}`
-                  : ""}
-              </span>
-            ) : toDecimal(summary.periodIncome).gt(0) ? (
-              `รายรับที่จดในเดือนนี้: +฿${formatMoneyDisplay(summary.periodIncome)}`
-            ) : (
-              `เงินออกวันที่ ${summary.payday} ของเดือน`
-            )}
+          <CardContent className="space-y-2 text-xs text-muted-foreground tabular-nums">
+            <p>
+              {toDecimal(summary.extraIncome).gt(0) ? (
+                <span>
+                  เงินเดือน ฿{formatMoneyDisplay(summary.monthlySalary)} + เสริม{" "}
+                  ฿{formatMoneyDisplay(summary.extraIncome)}
+                  {toDecimal(summary.periodIncome).gt(0)
+                    ? ` • จดรับจริง +฿${formatMoneyDisplay(summary.periodIncome)}`
+                    : ""}
+                </span>
+              ) : toDecimal(summary.periodIncome).gt(0) ? (
+                `รายรับที่จดในเดือนนี้: +฿${formatMoneyDisplay(summary.periodIncome)}`
+              ) : (
+                `เงินออกวันที่ ${summary.payday} ของเดือน`
+              )}
+            </p>
+            {toDecimal(summary.monthlySalary).gt(0) && onRecordSalaryReceipt ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openReceiveSalaryDialog}
+                className="h-7 gap-1.5 border-emerald-600/35 bg-emerald-500/5 px-2.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+              >
+                <Banknote className="h-3.5 w-3.5" />
+                <span>
+                  {toDecimal(summary.salaryReceivedThisPeriod).gt(0)
+                    ? "บันทึกเงินเดือนเข้าเพิ่ม"
+                    : "รับเงินเดือนเข้ากระเป๋า"}
+                </span>
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -536,15 +648,38 @@ export function PlanView({
         </Card>
       ) : null}
 
-      {/* Transfer Banner, Recommended Splits & Allocation Buckets */}
+      {/* Allocation Buckets */}
       <PlanAllocationsList
         summary={summary}
-        draftTotalIncome={draftTotalIncome}
-        onOpenTransferConfirm={() => setTransferConfirmOpen(true)}
         onOpenAddAllocation={openAddAllocation}
         onOpenEditAllocation={openEditAllocation}
         onToggleActive={handleToggleActive}
         onDelete={handleDelete}
+      />
+
+      {/* Income & Payday Settings Dialog */}
+      <PlanSettingsDialog
+        open={settingsDialogOpen}
+        formKey={settingsFormKey}
+        summary={summary}
+        activeWallets={activeWallets}
+        salaryInput={salaryInput}
+        extraIncomeInput={extraIncomeInput}
+        draftTotalIncome={draftTotalIncome}
+        onOpenChange={setSettingsDialogOpen}
+        onSalaryInputChange={setSalaryInput}
+        onExtraIncomeInputChange={setExtraIncomeInput}
+        onSaveSettings={onSaveSettings}
+        onNotice={setNotice}
+      />
+
+      {/* Recommended Split Calculator Dialog */}
+      <PlanRecommendationsDialog
+        open={recommendationsOpen}
+        onOpenChange={setRecommendationsOpen}
+        summary={summary}
+        draftTotalIncome={draftTotalIncome}
+        onOpenSettings={openSettingsDialog}
         onApplyRecommendedSplit={onApplyRecommendedSplit}
         onNotice={setNotice}
       />
@@ -569,8 +704,28 @@ export function PlanView({
         monthLabel={monthLabel}
         pendingAllocations={pendingAllocations}
         transferring={transferring}
+        onOpenSettings={() => {
+          setTransferConfirmOpen(false);
+          openSettingsDialog();
+        }}
         onConfirm={handleConfirmMonthlyTransfer}
       />
+
+      {/* Record Actual Salary Receipt Dialog */}
+      {onRecordSalaryReceipt ? (
+        <PlanReceiveSalaryDialog
+          open={receiveSalaryOpen}
+          formKey={receiveSalaryKey}
+          summary={summary}
+          monthLabel={monthLabel}
+          onOpenChange={setReceiveSalaryOpen}
+          onOpenSettings={() => {
+            setReceiveSalaryOpen(false);
+            openSettingsDialog();
+          }}
+          onRecordSalaryReceipt={handleRecordSalaryReceipt}
+        />
+      ) : null}
     </div>
   );
 }

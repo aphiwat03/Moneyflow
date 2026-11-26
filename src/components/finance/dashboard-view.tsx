@@ -24,7 +24,6 @@ import type {
 } from "@/lib/types";
 import { DashboardBudgetsRecent } from "./dashboard/dashboard-budgets-recent";
 import { DashboardKpiCards } from "./dashboard/dashboard-kpi-cards";
-import { DashboardSalaryPlanCard } from "./dashboard/dashboard-salary-plan-card";
 import { DashboardWalletsCard } from "./dashboard/dashboard-wallets-card";
 import { StreakFlameWidget } from "./streak-flame-widget";
 import { TransactionFormDialog } from "./transaction-form-dialog";
@@ -72,7 +71,6 @@ interface DashboardViewProps {
     editingId?: string
   ) => Promise<ActionResult<unknown>>;
   onViewAllTransactions: () => void;
-  onOpenPlan?: () => void;
   onOpenManage?: () => void;
 }
 
@@ -85,12 +83,10 @@ export function DashboardView({
   onChangeMonth,
   onSaveTransaction,
   onViewAllTransactions,
-  onOpenPlan,
   onOpenManage,
 }: DashboardViewProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionDTO | null>(null);
-  const selectedMonthKey = `${analytics.selectedYear}-${analytics.selectedMonth}`;
 
   const activeWallets = wallets.filter((w) => !w.isArchived);
 
@@ -217,15 +213,6 @@ export function DashboardView({
         onOpenManage={onOpenManage}
       />
 
-      {/* Salary Plan & Daily Spending Summary */}
-      {salaryPlan ? (
-        <DashboardSalaryPlanCard
-          salaryPlan={salaryPlan}
-          monthLabel={monthLabel}
-          onOpenPlan={onOpenPlan}
-        />
-      ) : null}
-
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-12">
         <Card className="lg:col-span-7">
@@ -262,7 +249,6 @@ export function DashboardView({
       <DashboardBudgetsRecent
         budgetStatuses={analytics.budgetStatuses}
         recentTransactions={analytics.recentTransactions}
-        selectedMonthKey={selectedMonthKey}
         monthLabel={monthLabel}
         onEditTransaction={(tx) => {
           setEditingTx(tx);

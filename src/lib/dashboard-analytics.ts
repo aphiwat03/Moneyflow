@@ -117,6 +117,10 @@ export function filterTransactionsList(
       if (tx.categoryId !== filters.categoryId) return false;
     }
 
+    if (filters.tag && filters.tag !== "all") {
+      if ((tx.tag ?? "") !== filters.tag) return false;
+    }
+
     if (filters.startDate && tx.transactionDate < filters.startDate) {
       return false;
     }
@@ -128,6 +132,7 @@ export function filterTransactionsList(
     if (query) {
       const haystacks = [
         tx.note ?? "",
+        tx.tag ?? "",
         tx.recipientName ?? "",
         tx.recipientBank ?? "",
         tx.recipientAccount ?? "",

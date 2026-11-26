@@ -156,6 +156,7 @@ export const transactions = pgTable(
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
     transactionTime: varchar("transaction_time", { length: 5 }),
     note: text("note"),
+    tag: varchar("tag", { length: 80 }),
     recipientName: varchar("recipient_name", { length: 120 }),
     recipientBank: varchar("recipient_bank", { length: 60 }),
     recipientAccount: varchar("recipient_account", { length: 64 }),
@@ -198,6 +199,9 @@ export const transactions = pgTable(
     index("idx_tx_user_category")
       .on(t.userId, t.categoryId)
       .where(sql`${t.categoryId} IS NOT NULL`),
+    index("idx_tx_user_tag")
+      .on(t.userId, t.tag)
+      .where(sql`${t.tag} IS NOT NULL`),
   ]
 );
 

@@ -32,7 +32,7 @@ export const DEFAULT_WALLETS: DefaultWalletTemplate[] = [
 ];
 
 export const DEFAULT_CATEGORIES: DefaultCategoryTemplate[] = [
-  // Expense categories
+  // Expense categories (expanded Thai standard set)
   {
     name: "อาหารและเครื่องดื่ม",
     type: "expense",
@@ -69,10 +69,80 @@ export const DEFAULT_CATEGORIES: DefaultCategoryTemplate[] = [
     isDefault: true,
   },
   {
+    name: "ดูแลตัวเอง",
+    type: "expense",
+    color: "#f472b6",
+    icon: "Sparkles",
+    isDefault: true,
+  },
+  {
+    name: "ออกกำลังกายและกีฬา",
+    type: "expense",
+    color: "#10b981",
+    icon: "Dumbbell",
+    isDefault: true,
+  },
+  {
+    name: "เสื้อผ้าและรองเท้า",
+    type: "expense",
+    color: "#d946ef",
+    icon: "Shirt",
+    isDefault: true,
+  },
+  {
+    name: "การศึกษา",
+    type: "expense",
+    color: "#6366f1",
+    icon: "GraduationCap",
+    isDefault: true,
+  },
+  {
     name: "บันเทิง",
     type: "expense",
     color: "#eab308",
     icon: "Gamepad2",
+    isDefault: true,
+  },
+  {
+    name: "ครอบครัว",
+    type: "expense",
+    color: "#fb7185",
+    icon: "Users",
+    isDefault: true,
+  },
+  {
+    name: "ของขวัญ",
+    type: "expense",
+    color: "#f43f5e",
+    icon: "Gift",
+    isDefault: true,
+  },
+  {
+    name: "ทำบุญและบริจาค",
+    type: "expense",
+    color: "#f59e0b",
+    icon: "HeartHandshake",
+    isDefault: true,
+  },
+  {
+    name: "ประกัน",
+    type: "expense",
+    color: "#0284c7",
+    icon: "ShieldCheck",
+    isDefault: true,
+  },
+  {
+    name: "ผ่อนชำระและหนี้สิน",
+    type: "expense",
+    color: "#dc2626",
+    icon: "CreditCard",
+    isDefault: true,
+  },
+  {
+    name: "ท่องเที่ยว",
+    type: "expense",
+    color: "#14b8a6",
+    icon: "Plane",
     isDefault: true,
   },
   {
@@ -99,10 +169,24 @@ export const DEFAULT_CATEGORIES: DefaultCategoryTemplate[] = [
     isDefault: true,
   },
   {
+    name: "กองทุนสำรองเลี้ยงชีพ",
+    type: "income",
+    color: "#059669",
+    icon: "Landmark",
+    isDefault: true,
+  },
+  {
     name: "ดอกเบี้ย / เงินปันผล",
     type: "income",
     color: "#06b6d4",
     icon: "TrendingUp",
+    isDefault: true,
+  },
+  {
+    name: "เงินคืน / เบิกคืน",
+    type: "income",
+    color: "#0ea5e9",
+    icon: "RotateCcw",
     isDefault: true,
   },
   {

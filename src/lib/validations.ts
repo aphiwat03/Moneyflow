@@ -316,6 +316,13 @@ export const transactionSchema = z
       .optional()
       .nullable()
       .transform((v) => (v && v.length > 0 ? v : null)),
+    tag: z
+      .string()
+      .trim()
+      .max(80, "แท็กต้องไม่เกิน 80 ตัวอักษร")
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
     recipientName: z
       .string()
       .trim()
@@ -626,4 +633,16 @@ export const importLocalInvestmentsSchema = z.object({
   settings: investmentSettingsSchema.optional().nullable(),
   holdings: z.array(investmentHoldingSchema).max(100).default([]),
   snapshots: z.array(investmentSnapshotSchema).max(240).default([]),
+});
+
+export const recordSalaryReceiptSchema = z.object({
+  amount: positiveMoneyStringSchema,
+  transactionDate: isoDateSchema,
+  note: z
+    .string()
+    .trim()
+    .max(200, "หมายเหตุต้องไม่เกิน 200 ตัวอักษร")
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
 });

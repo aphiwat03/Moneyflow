@@ -37,6 +37,10 @@ import {
 } from "@/lib/date";
 import { formatMoneyDisplay } from "@/lib/decimal";
 import { pickSlipWalletId } from "@/lib/slip-parser";
+import {
+  getTagOptionsForCategory,
+  RECIPIENT_BANK_OPTIONS,
+} from "@/lib/transaction-tags";
 import { extractTaxAlertFromResult } from "@/lib/thai-tax";
 import type {
   SlipOcrProviderName,
@@ -155,6 +159,7 @@ function TransactionFormBody({
       : getBangkokCurrentTime()
   );
   const [note, setNote] = useState(initialTransaction?.note ?? "");
+  const [tag, setTag] = useState(initialTransaction?.tag ?? "");
   const [recipientName, setRecipientName] = useState(
     initialTransaction?.recipientName ?? ""
   );
@@ -164,13 +169,7 @@ function TransactionFormBody({
   const [recipientAccount, setRecipientAccount] = useState(
     initialTransaction?.recipientAccount ?? ""
   );
-  const [recipientOpen, setRecipientOpen] = useState(() =>
-    Boolean(
-      initialTransaction?.recipientName ||
-        initialTransaction?.recipientBank ||
-        initialTransaction?.recipientAccount
-    )
-  );
+  const [recipientOpen, setRecipientOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -265,7 +264,6 @@ function TransactionFormBody({
         setRecipientAccount((prev) =>
           prev.trim() ? prev : demoRecipientAccount
         );
-        setRecipientOpen(true);
         toast.warning(
           provider === "gemini"
             ? "โหมด Demo: จำลองผลลัพธ์ Gemini"
@@ -324,9 +322,6 @@ function TransactionFormBody({
         setRecipientAccount((prev) =>
           prev.trim() ? prev : data.recipientAccount!
         );
-      }
-      if (data.recipientName || data.recipientBank || data.recipientAccount) {
-        setRecipientOpen(true);
       }
 
       const { switchedWalletName, isStillCash } = applyMatchedSlipWallet(
@@ -431,11 +426,43 @@ function TransactionFormBody({
     }
   }
 
-  const availableCategories = categories.filter(
-    (c) =>
-      c.type === (type === "income" ? "income" : "expense") &&
-      (!c.isArchived || c.id === initialTransaction?.categoryId)
+  const OTHER_CATEGORY_NAMES = new Set(["รายจ่ายอื่นๆ", "รายรับอื่นๆ"]);
+  const availableCategories = categories
+    .filter(
+      (c) =>
+        c.type === (type === "income" ? "income" : "expense") &&
+        (!c.isArchived || c.id === initialTransaction?.categoryId)
+    )
+    .sort((a, b) => {
+      const aOther = OTHER_CATEGORY_NAMES.has(a.name) ? 1 : 0;
+      const bOther = OTHER_CATEGORY_NAMES.has(b.name) ? 1 : 0;
+      return aOther - bOther;
+    });
+
+  const selectedCategory = availableCategories.find(
+    (c) => c.id === categoryId
   );
+  const tagOptions = getTagOptionsForCategory({
+    type: type === "income" ? "income" : "expense",
+    categoryName: selectedCategory?.name,
+    categoryColor: selectedCategory?.color,
+    currentTag: tag,
+  });
+
+  const bankOptions = (() => {
+    const trimmed = recipientBank.trim();
+    if (
+      !trimmed ||
+      RECIPIENT_BANK_OPTIONS.some((opt) => opt.value === trimmed)
+    ) {
+      return RECIPIENT_BANK_OPTIONS;
+    }
+    return [
+      RECIPIENT_BANK_OPTIONS[0],
+      { value: trimmed, label: trimmed, dotColor: "#0f766e" },
+      ...RECIPIENT_BANK_OPTIONS.slice(1),
+    ];
+  })();
 
   function handleTypeChange(nextType: TransactionType) {
     if (nextType === type) return;
@@ -445,12 +472,14 @@ function TransactionFormBody({
 
     if (nextType === "transfer") {
       setCategoryId("");
+      setTag("");
       if (!toWalletId || toWalletId === walletId) {
         const other = activeWallets.find((w) => w.id !== walletId);
         setToWalletId(other?.id ?? "");
       }
     } else {
       setToWalletId("");
+      setTag("");
       const validCat = categories.find(
         (c) => c.id === categoryId && c.type === nextType && !c.isArchived
       );
@@ -486,6 +515,7 @@ function TransactionFormBody({
         transactionDate,
         transactionTime: transactionTime.trim() || null,
         note: note.trim() || null,
+        tag: type === "transfer" ? null : tag.trim() || null,
         recipientName: recipientName.trim() || null,
         recipientBank: recipientBank.trim() || null,
         recipientAccount: recipientAccount.trim() || null,
@@ -783,6 +813,20 @@ function TransactionFormBody({
         )}
       </div>
 
+      {/* Tag Dropdown (recommended for selected category) */}
+      {type !== "transfer" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="tx-tag">แท็ก (Tag — เลือกง่ายตามหมวดหมู่)</Label>
+          <AppSelect
+            id="tx-tag"
+            value={tag}
+            onValueChange={setTag}
+            placeholder="เลือกแท็ก (ไม่บังคับ)"
+            options={tagOptions}
+          />
+        </div>
+      ) : null}
+
       {/* Date, Time & Note */}
       <div className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -824,7 +868,7 @@ function TransactionFormBody({
         </div>
       </div>
 
-      {/* Collapsible Recipient Metadata (adds 1 slim button when collapsed; auto-opens on OCR slip match) */}
+      {/* Collapsible Recipient Metadata (adds 1 slim button when collapsed) */}
       <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2">
         <button
           type="button"
@@ -871,14 +915,14 @@ function TransactionFormBody({
                   <Label htmlFor="tx-recipient-bank" className="text-xs">
                     ธนาคารปลายทาง
                   </Label>
-                  <Input
+                  <AppSelect
                     id="tx-recipient-bank"
-                    type="text"
-                    placeholder="เช่น SCB, K PLUS, PromptPay"
                     value={recipientBank}
-                    onChange={(e) => setRecipientBank(e.target.value)}
+                    onValueChange={setRecipientBank}
+                    placeholder="เลือกธนาคารปลายทาง"
+                    size="sm"
                     className="h-9 text-sm"
-                    maxLength={60}
+                    options={bankOptions}
                   />
                 </div>
 

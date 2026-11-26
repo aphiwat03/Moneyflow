@@ -62,6 +62,9 @@ export function DbTransactionsClient({
     if (filters.categoryId && filters.categoryId !== "all") {
       params.set("categoryId", filters.categoryId);
     }
+    if (filters.tag && filters.tag !== "all") {
+      params.set("tag", filters.tag);
+    }
     if (filters.startDate) params.set("startDate", filters.startDate);
     if (filters.endDate) params.set("endDate", filters.endDate);
     if (filters.q?.trim()) params.set("q", filters.q.trim());

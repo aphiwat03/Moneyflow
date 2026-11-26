@@ -6,6 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
+  categories,
   salaryAllocations,
   salarySettings,
   transactions,
@@ -32,6 +33,7 @@ import type {
 } from "@/lib/types";
 import {
   salaryAllocationSchema,
+  recordSalaryReceiptSchema,
   salarySettingsSchema,
 } from "@/lib/validations";
 
@@ -572,5 +574,132 @@ export async function executeMonthlyAllocationTransfersAction(input: {
   } catch (error) {
     console.error("executeMonthlyAllocationTransfersAction error:", error);
     return { ok: false, error: "ไม่สามารถสร้างรายการโอนตามแผนได้" };
+  }
+}
+
+export interface RecordSalaryReceiptInput {
+  amount: string;
+  transactionDate: string;
+  note?: string | null;
+}
+
+export async function recordSalaryReceiptAction(
+  input: RecordSalaryReceiptInput
+): Promise<ActionResult<{ id: string; amount: string; walletName: string }>> {
+  const user = await requireUser();
+  const parsed = recordSalaryReceiptSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "ข้อมูลการรับเงินเดือนไม่ถูกต้อง",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [settingsRow] = await tx
+        .select({ salaryWalletId: salarySettings.salaryWalletId })
+        .from(salarySettings)
+        .where(eq(salarySettings.userId, user.id))
+        .limit(1);
+
+      if (!settingsRow?.salaryWalletId) {
+        return {
+          ok: false as const,
+          error: "กรุณาเลือกกระเป๋ารับเงินในเมนูตั้งค่ารายได้ก่อน",
+        };
+      }
+
+      const [walletRow] = await tx
+        .select({
+          id: wallets.id,
+          name: wallets.name,
+          isArchived: wallets.isArchived,
+        })
+        .from(wallets)
+        .where(
+          and(
+            eq(wallets.id, settingsRow.salaryWalletId),
+            eq(wallets.userId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (!walletRow || walletRow.isArchived) {
+        return {
+          ok: false as const,
+          error: "กระเป๋ารับเงินเดือนไม่พร้อมใช้งานหรือถูกซ่อนอยู่",
+        };
+      }
+
+      const incomeCats = await tx
+        .select({
+          id: categories.id,
+          name: categories.name,
+          isArchived: categories.isArchived,
+        })
+        .from(categories)
+        .where(
+          and(eq(categories.userId, user.id), eq(categories.type, "income"))
+        );
+
+      let targetCat =
+        incomeCats.find((c) => !c.isArchived && c.name === "เงินเดือน") ??
+        incomeCats.find((c) => !c.isArchived) ??
+        incomeCats.find((c) => c.name === "เงินเดือน");
+
+      if (!targetCat) {
+        const [createdCat] = await tx
+          .insert(categories)
+          .values({
+            userId: user.id,
+            name: "เงินเดือน",
+            type: "income",
+            color: "#10b981",
+            icon: "Briefcase",
+            isDefault: true,
+          })
+          .returning({
+            id: categories.id,
+            name: categories.name,
+            isArchived: categories.isArchived,
+          });
+        targetCat = createdCat;
+      }
+
+      const [createdTx] = await tx
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          type: "income",
+          walletId: walletRow.id,
+          toWalletId: null,
+          categoryId: targetCat.id,
+          amount: parsed.data.amount,
+          transactionDate: parsed.data.transactionDate,
+          note: parsed.data.note ?? "รับเงินเดือน",
+        })
+        .returning({ id: transactions.id });
+
+      return {
+        ok: true as const,
+        data: {
+          id: createdTx.id,
+          amount: parsed.data.amount,
+          walletName: walletRow.name,
+        },
+      };
+    });
+
+    if (!result.ok) {
+      return result;
+    }
+
+    revalidatePlanAndMoneyViews();
+    return result;
+  } catch (error) {
+    console.error("recordSalaryReceiptAction error:", error);
+    return { ok: false, error: "ไม่สามารถบันทึกรายการรับเงินเดือนได้" };
   }
 }

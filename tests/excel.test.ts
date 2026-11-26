@@ -4,7 +4,7 @@ import { buildMoneyFlowWorkbook } from "@/lib/excel";
 import type { TransactionDTO } from "@/lib/types";
 
 describe("ExcelJS workbook builder", () => {
-  it("generates Summary and Transactions sheets, sanitizes formulas, and preserves numeric amounts", async () => {
+  it("generates Summary, Transactions, and Guide sheets, includes tags, sanitizes formulas, and preserves numeric amounts", async () => {
     const sample: TransactionDTO[] = [
       {
         id: "tx-1",
@@ -15,11 +15,15 @@ describe("ExcelJS workbook builder", () => {
         toWalletId: null,
         toWalletName: null,
         categoryId: "c-1",
-        categoryName: "อาหาร",
+        categoryName: "อาหารและเครื่องดื่ม",
         categoryColor: "#f97316",
         amount: "1250.75",
         transactionDate: "2026-11-16",
+        transactionTime: "12:30",
+        tag: "ร้านกาแฟ",
         note: "=HYPERLINK(\"http://evil.example\")",
+        recipientName: "Cafe Amazon",
+        recipientBank: "กสิกรไทย (K PLUS)",
       },
       {
         id: "tx-2",
@@ -49,14 +53,19 @@ describe("ExcelJS workbook builder", () => {
 
     const summarySheet = loaded.getWorksheet("Summary");
     const txSheet = loaded.getWorksheet("Transactions");
+    const guideSheet = loaded.getWorksheet("คำอธิบาย");
 
     expect(summarySheet).toBeDefined();
     expect(txSheet).toBeDefined();
+    expect(guideSheet).toBeDefined();
 
     // Row 2 in Transactions should be 2026-11-16 (sorted descending)
     const row2 = txSheet!.getRow(2);
-    expect(row2.getCell(6).value).toBe("'=HYPERLINK(\"http://evil.example\")");
-    expect(row2.getCell(7).value).toBe(1250.75);
-    expect(row2.getCell(7).numFmt).toBe("#,##0.00");
+    expect(row2.getCell(2).value).toBe("12:30");
+    expect(row2.getCell(5).value).toBe("ร้านกาแฟ");
+    expect(row2.getCell(8).value).toBe("'=HYPERLINK(\"http://evil.example\")");
+    expect(row2.getCell(9).value).toBe("Cafe Amazon (กสิกรไทย (K PLUS))");
+    expect(row2.getCell(10).value).toBe(1250.75);
+    expect(row2.getCell(10).numFmt).toBe("#,##0.00");
   });
 });

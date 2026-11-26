@@ -194,6 +194,14 @@ export function TransactionsListSection({
                               >
                                 {tx.walletName}
                               </Badge>
+                              {tx.tag ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-teal-500/30 bg-teal-500/10 text-[10px] font-normal text-teal-700 dark:text-teal-300"
+                                >
+                                  #{tx.tag}
+                                </Badge>
+                              ) : null}
                               {txTime ? (
                                 <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
                                   {txTime} น.
@@ -306,6 +314,14 @@ export function TransactionsListSection({
                           >
                             {badge.label}
                           </Badge>
+                          {tx.tag ? (
+                            <Badge
+                              variant="outline"
+                              className="border-teal-500/30 bg-teal-500/10 text-[10px] font-normal text-teal-700 dark:text-teal-300"
+                            >
+                              #{tx.tag}
+                            </Badge>
+                          ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground tabular-nums">
                           {formatTransactionDateTimeDisplay(tx)} •{" "}
@@ -406,7 +422,7 @@ export function TransactionsListSection({
                             {tx.walletName} → {tx.toWalletName ?? "-"}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex flex-wrap items-center gap-2">
                             <span
                               className="h-2.5 w-2.5 rounded-full"
                               style={{
@@ -414,6 +430,14 @@ export function TransactionsListSection({
                               }}
                             />
                             {tx.categoryName ?? "-"}
+                            {tx.tag ? (
+                              <Badge
+                                variant="outline"
+                                className="border-teal-500/30 bg-teal-500/10 text-[11px] font-normal text-teal-700 dark:text-teal-300"
+                              >
+                                #{tx.tag}
+                              </Badge>
+                            ) : null}
                           </span>
                         )}
                       </TableCell>
@@ -525,3 +549,4 @@ export function TransactionsListSection({
     </>
   );
 }
+

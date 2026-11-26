@@ -24,6 +24,9 @@ const demoTransactionSchema = z.object({
   categoryColor: z.string().max(24).nullable(),
   amount: positiveMoneyStringSchema,
   transactionDate: z.string().refine(isValidIsoCalendarDate),
+  transactionTime: z.string().max(5).optional().nullable(),
+  tag: z.string().max(80).optional().nullable(),
+  recipientName: z.string().max(120).optional().nullable(),
   note: z.string().max(1000).nullable(),
 });
 

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Decimal from "decimal.js";
 import type {
+  RecordSalaryReceiptInput,
   SalaryAllocationFormInput,
   SalarySettingsFormInput,
 } from "@/actions/salary-plan";
@@ -59,6 +60,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   categorySchema,
+  recordSalaryReceiptSchema,
   salaryAllocationSchema,
   salarySettingsSchema,
   transactionSchema,
@@ -281,6 +283,7 @@ export function DemoWorkspace({
       transactionTime: parsed.data.transactionTime,
       createdAt: existingTx?.createdAt ?? new Date().toISOString(),
       note: parsed.data.note,
+      tag: parsed.data.tag,
       recipientName: parsed.data.recipientName,
       recipientBank: parsed.data.recipientBank,
       recipientAccount: parsed.data.recipientAccount,
@@ -755,6 +758,52 @@ export function DemoWorkspace({
     };
   }
 
+  async function handleRecordDemoSalaryReceipt(
+    input: RecordSalaryReceiptInput
+  ): Promise<ActionResult<{ id: string; amount: string; walletName: string }>> {
+    const parsed = recordSalaryReceiptSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: "ข้อมูลการรับเงินเดือนไม่ถูกต้อง",
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      };
+    }
+    if (!salarySettings.salaryWalletId) {
+      return { ok: false, error: "กรุณาเลือกกระเป๋ารับเงินเดือนก่อน" };
+    }
+    const wallet = rawWallets.find((w) => w.id === salarySettings.salaryWalletId);
+    if (!wallet) {
+      return { ok: false, error: "ไม่พบกระเป๋ารับเงินเดือน" };
+    }
+    const salaryCat =
+      categories.find((c) => c.type === "income" && !c.isArchived && c.name === "เงินเดือน") ??
+      categories.find((c) => c.type === "income" && !c.isArchived);
+    const id = crypto.randomUUID();
+    setRawTransactions((prev) => [
+      {
+        id,
+        type: "income",
+        walletId: wallet.id,
+        walletName: wallet.name,
+        walletType: wallet.type,
+        toWalletId: null,
+        toWalletName: null,
+        categoryId: salaryCat?.id ?? null,
+        categoryName: salaryCat?.name ?? "เงินเดือน",
+        categoryColor: salaryCat?.color ?? "#10b981",
+        amount: parsed.data.amount,
+        transactionDate: parsed.data.transactionDate,
+        note: parsed.data.note ?? "รับเงินเดือน",
+      },
+      ...prev,
+    ]);
+    return {
+      ok: true,
+      data: { id, amount: parsed.data.amount, walletName: wallet.name },
+    };
+  }
+
   async function handleExportDemoFullBackup(): Promise<
     ActionResult<MoneyFlowBackupBundle>
   > {
@@ -975,7 +1024,6 @@ export function DemoWorkspace({
                 onChangeMonth={(year, month) => setSelectedYm({ year, month })}
                 onSaveTransaction={handleSaveTransaction}
                 onViewAllTransactions={() => setActiveTab("transactions")}
-                onOpenPlan={() => setActiveTab("plan")}
                 onOpenManage={() => setActiveTab("manage")}
               />
             ) : activeTab === "transactions" ? (
@@ -999,6 +1047,7 @@ export function DemoWorkspace({
                 onDeleteAllocation={handleDeleteDemoSalaryAllocation}
                 onApplyRecommendedSplit={handleApplyDemoRecommendedSplit}
                 onExecuteMonthlyTransfers={handleExecuteDemoMonthlyTransfers}
+                onRecordSalaryReceipt={handleRecordDemoSalaryReceipt}
               />
             ) : activeTab === "investments" ? (
               <InvestmentsView

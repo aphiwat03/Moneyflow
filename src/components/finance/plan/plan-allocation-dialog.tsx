@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp } from "lucide-react";
-import type { SalaryAllocationFormInput } from "@/actions/salary-plan";
+import { Banknote, TrendingUp } from "lucide-react";
+import type {
+  RecordSalaryReceiptInput,
+  SalaryAllocationFormInput,
+} from "@/actions/salary-plan";
 import { Button } from "@/components/ui/button";
+import { AppDatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -372,6 +376,191 @@ export function PlanAllocationDialog({
   );
 }
 
+interface PlanReceiveSalaryFormBodyProps {
+  summary: SalaryPlanSummary;
+  onClose: () => void;
+  onRecordSalaryReceipt: (
+    input: RecordSalaryReceiptInput
+  ) => Promise<ActionResult<unknown>>;
+}
+
+function PlanReceiveSalaryFormBody({
+  summary,
+  onClose,
+  onRecordSalaryReceipt,
+}: PlanReceiveSalaryFormBodyProps) {
+  const [amount, setAmount] = useState(
+    toDecimal(summary.monthlySalary).gt(0) ? summary.monthlySalary : ""
+  );
+  const [transactionDate, setTransactionDate] = useState(summary.todayDate);
+  const [note, setNote] = useState("รับเงินเดือน");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await onRecordSalaryReceipt({
+        amount: amount.trim(),
+        transactionDate,
+        note: note.trim() || "รับเงินเดือน",
+      });
+      if (!res.ok) {
+        const firstErr = res.fieldErrors
+          ? Object.values(res.fieldErrors).flat()[0]
+          : undefined;
+        setError(firstErr ?? res.error ?? "บันทึกรับเงินเดือนไม่สำเร็จ");
+        return;
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-xs">
+        <span className="text-muted-foreground">เข้ากระเป๋า: </span>
+        <strong className="text-foreground">{summary.salaryWalletName}</strong>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+        <div className="space-y-1.5">
+          <Label htmlFor="receive-salary-amount">จำนวนเงินที่เข้าจริง (บาท)</Label>
+          <Input
+            id="receive-salary-amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="เช่น 14500"
+            className="h-10"
+            required
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="receive-salary-date">วันที่เงินเข้า</Label>
+          <AppDatePicker
+            id="receive-salary-date"
+            value={transactionDate}
+            onChange={setTransactionDate}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="receive-salary-note">หมายเหตุ</Label>
+        <Input
+          id="receive-salary-note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="รับเงินเดือน"
+          className="h-10"
+        />
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={saving}
+          onClick={onClose}
+        >
+          ยกเลิก
+        </Button>
+        <Button
+          type="submit"
+          loading={saving}
+          loadingText="กำลังบันทึก..."
+          className="bg-emerald-600 text-white hover:bg-emerald-700"
+        >
+          ยืนยันรับเงินเข้ากระเป๋า
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+interface PlanReceiveSalaryDialogProps {
+  open: boolean;
+  formKey: number;
+  summary: SalaryPlanSummary;
+  monthLabel: string;
+  onOpenChange: (open: boolean) => void;
+  onOpenSettings: () => void;
+  onRecordSalaryReceipt: (
+    input: RecordSalaryReceiptInput
+  ) => Promise<ActionResult<unknown>>;
+}
+
+export function PlanReceiveSalaryDialog({
+  open,
+  formKey,
+  summary,
+  monthLabel,
+  onOpenChange,
+  onOpenSettings,
+  onRecordSalaryReceipt,
+}: PlanReceiveSalaryDialogProps) {
+  const hasSalaryWallet = Boolean(summary.salaryWalletId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Banknote className="h-4 w-4 text-emerald-600" />
+            <span>บันทึกเงินเดือนเข้าจริง ({monthLabel})</span>
+          </DialogTitle>
+          <DialogDescription>
+            {hasSalaryWallet
+              ? "สร้างรายการรายรับจริงเข้ากระเป๋าหลัก เมื่อเงินเดือนเข้าแล้วในรอบนี้"
+              : "กรุณาเลือกกระเป๋ารับเงินในเมนูตั้งค่ารายได้ก่อนกดรับเงินเดือน"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {hasSalaryWallet ? (
+          <PlanReceiveSalaryFormBody
+            key={formKey}
+            summary={summary}
+            onClose={() => onOpenChange(false)}
+            onRecordSalaryReceipt={onRecordSalaryReceipt}
+          />
+        ) : (
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              ปิด
+            </Button>
+            <Button
+              type="button"
+              onClick={onOpenSettings}
+              className="bg-teal-700 text-white hover:bg-teal-800"
+            >
+              เลือกกระเป๋ารับเงิน
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface PlanTransferConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -379,6 +568,7 @@ interface PlanTransferConfirmDialogProps {
   monthLabel: string;
   pendingAllocations: ComputedAllocationItem[];
   transferring: boolean;
+  onOpenSettings?: () => void;
   onConfirm: () => Promise<void>;
 }
 
@@ -389,17 +579,26 @@ export function PlanTransferConfirmDialog({
   monthLabel,
   pendingAllocations,
   transferring,
+  onOpenSettings,
   onConfirm,
 }: PlanTransferConfirmDialogProps) {
+  const hasSalaryWallet = Boolean(summary.salaryWalletId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>ยืนยันการโอนเงินตามแผน ({monthLabel})</DialogTitle>
           <DialogDescription>
-            ระบบจะสร้างรายการโอนย้าย (Transfer) จาก{" "}
-            <strong>{summary.salaryWalletName}</strong>{" "}
-            ไปยังกระเป๋าเป้าหมายต่อไปนี้:
+            {hasSalaryWallet ? (
+              <>
+                ระบบจะสร้างรายการโอนย้าย (Transfer) จาก{" "}
+                <strong>{summary.salaryWalletName}</strong>{" "}
+                ไปยังกระเป๋าเป้าหมายต่อไปนี้:
+              </>
+            ) : (
+              "กรุณาเลือกกระเป๋ารับเงินเดือนในเมนูตั้งค่ารายได้ก่อนทำการโอนตามแผน"
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -434,15 +633,25 @@ export function PlanTransferConfirmDialog({
           >
             ยกเลิก
           </Button>
-          <Button
-            type="button"
-            loading={transferring}
-            loadingText="กำลังดำเนินการ..."
-            onClick={onConfirm}
-            className="bg-sky-600 text-white hover:bg-sky-700"
-          >
-            ยืนยันโอนตามแผน
-          </Button>
+          {hasSalaryWallet ? (
+            <Button
+              type="button"
+              loading={transferring}
+              loadingText="กำลังดำเนินการ..."
+              onClick={onConfirm}
+              className="bg-sky-600 text-white hover:bg-sky-700"
+            >
+              ยืนยันโอนตามแผน
+            </Button>
+          ) : onOpenSettings ? (
+            <Button
+              type="button"
+              onClick={onOpenSettings}
+              className="bg-teal-700 text-white hover:bg-teal-800"
+            >
+              ตั้งค่ากระเป๋ารับเงิน
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

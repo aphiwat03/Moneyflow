@@ -232,8 +232,8 @@ export function InvestmentSimulatorCard({
             </div>
 
             {/* Inputs Grid */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-1.5">
+            <div className="grid gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-3">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <Label htmlFor="inv-goal">เป้าหมายพอร์ต (บาท)</Label>
                 <Input
                   id="inv-goal"
@@ -244,7 +244,7 @@ export function InvestmentSimulatorCard({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-1">
                   <Label htmlFor="inv-principal">
                     เงินต้นตั้งต้น / พอร์ตปัจจุบัน (บาท)
@@ -282,7 +282,7 @@ export function InvestmentSimulatorCard({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-1">
                   <Label htmlFor="inv-dca">ยอด DCA ต่อเดือน (บาท)</Label>
                   {toDecimal(linkedPlanDcaMonthly).gt(0) ? (
@@ -305,7 +305,7 @@ export function InvestmentSimulatorCard({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <Label htmlFor="inv-return">
                   ผลตอบแทนเฉลี่ยคาดหวัง (% ต่อปี)
                 </Label>
@@ -318,9 +318,9 @@ export function InvestmentSimulatorCard({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="inv-horizon">ระยะเวลาลงทุน (ปี)</Label>
+                  <Label htmlFor="inv-horizon" className="whitespace-nowrap">ระยะเวลา (ปี)</Label>
                   <div className="flex items-center gap-1">
                     {HORIZON_PRESETS.map((yr) => (
                       <button
@@ -348,7 +348,7 @@ export function InvestmentSimulatorCard({
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="flex h-full flex-col justify-end space-y-1.5">
                 <Label htmlFor="inv-stepup">
                   เพิ่มยอด DCA ต่อปี (% — เมื่อเงินเดือนขึ้น)
                 </Label>

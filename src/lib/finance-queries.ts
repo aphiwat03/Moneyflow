@@ -172,6 +172,9 @@ export async function getUserTransactions(
   if (filters.categoryId && filters.categoryId !== "all") {
     conditions.push(eq(transactions.categoryId, filters.categoryId));
   }
+  if (filters.tag && filters.tag !== "all") {
+    conditions.push(eq(transactions.tag, filters.tag));
+  }
   if (filters.startDate) {
     conditions.push(gte(transactions.transactionDate, filters.startDate));
   }
@@ -182,6 +185,7 @@ export async function getUserTransactions(
     const pattern = `%${escapeSqlLikePattern(filters.q.trim())}%`;
     const matchQuery = or(
       ilike(transactions.note, pattern),
+      ilike(transactions.tag, pattern),
       ilike(transactions.recipientName, pattern),
       ilike(transactions.recipientBank, pattern),
       ilike(transactions.recipientAccount, pattern),
@@ -209,6 +213,7 @@ export async function getUserTransactions(
       transactionTime: transactions.transactionTime,
       createdAt: transactions.createdAt,
       note: transactions.note,
+      tag: transactions.tag,
       recipientName: transactions.recipientName,
       recipientBank: transactions.recipientBank,
       recipientAccount: transactions.recipientAccount,

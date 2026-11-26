@@ -60,7 +60,6 @@ export function DbDashboardClient({
       onChangeMonth={handleChangeMonth}
       onSaveTransaction={handleSaveTransaction}
       onViewAllTransactions={() => router.push("/transactions")}
-      onOpenPlan={() => router.push("/plan")}
       onOpenManage={() => router.push("/manage")}
     />
   );

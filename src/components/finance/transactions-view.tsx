@@ -15,6 +15,7 @@ import {
 import { filterTransactionsList } from "@/lib/dashboard-analytics";
 import { getBangkokToday } from "@/lib/date";
 import { formatMoneyDisplay } from "@/lib/decimal";
+import { TRANSACTION_TAGS } from "@/lib/transaction-tags";
 import type {
   ActionResult,
   CategoryDTO,
@@ -62,6 +63,7 @@ export function TransactionsView({
     type: "all",
     walletId: "all",
     categoryId: "all",
+    tag: "all",
     startDate: "",
     endDate: "",
   });
@@ -96,6 +98,14 @@ export function TransactionsView({
 
   const todayIso = useMemo(() => getBangkokToday(), []);
 
+  const availableTags = useMemo(() => {
+    const set = new Set<string>(TRANSACTION_TAGS.map((t) => t.name));
+    for (const tx of transactions) {
+      if (tx.tag?.trim()) set.add(tx.tag.trim());
+    }
+    return Array.from(set);
+  }, [transactions]);
+
   function updateFilters(
     updater: (prev: TransactionFilterParams) => TransactionFilterParams
   ) {
@@ -109,6 +119,7 @@ export function TransactionsView({
       type: "all",
       walletId: "all",
       categoryId: "all",
+      tag: "all",
       startDate: "",
       endDate: "",
     });
@@ -223,6 +234,7 @@ export function TransactionsView({
         filters={filters}
         wallets={wallets}
         categories={categories}
+        availableTags={availableTags}
         viewMode={viewMode}
         filteredCount={filtered.length}
         onUpdateFilters={updateFilters}

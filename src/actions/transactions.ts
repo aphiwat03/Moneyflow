@@ -34,6 +34,7 @@ export interface TransactionFormInput {
   transactionDate: string;
   transactionTime?: string | null;
   note?: string | null;
+  tag?: string | null;
   recipientName?: string | null;
   recipientBank?: string | null;
   recipientAccount?: string | null;
@@ -117,6 +118,7 @@ export async function createTransactionAction(
         transactionDate: parsed.data.transactionDate,
         transactionTime: parsed.data.transactionTime,
         note: parsed.data.note,
+        tag: parsed.data.tag,
         recipientName: parsed.data.recipientName,
         recipientBank: parsed.data.recipientBank,
         recipientAccount: parsed.data.recipientAccount,
@@ -198,6 +200,7 @@ export async function updateTransactionAction(
         transactionDate: parsed.data.transactionDate,
         transactionTime: parsed.data.transactionTime,
         note: parsed.data.note,
+        tag: parsed.data.tag,
         recipientName: parsed.data.recipientName,
         recipientBank: parsed.data.recipientBank,
         recipientAccount: parsed.data.recipientAccount,
@@ -319,6 +322,7 @@ export async function bulkImportTransactionsAction(
         amount: d.amount,
         transactionDate: d.transactionDate,
         note: d.note,
+        tag: d.tag,
         recipientName: d.recipientName,
         recipientBank: d.recipientBank,
         recipientAccount: d.recipientAccount,

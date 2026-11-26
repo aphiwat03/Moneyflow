@@ -175,6 +175,13 @@ const backupTransactionSchema = z.object({
     .optional()
     .nullable()
     .transform((v) => (v && v.length > 0 ? v : null)),
+  tag: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.length > 0 ? v : null)),
   recipientName: z
     .string()
     .trim()
@@ -473,6 +480,7 @@ export function createBackupBundle(params: {
       | "amount"
       | "transactionDate"
       | "note"
+      | "tag"
       | "recipientName"
       | "recipientBank"
       | "recipientAccount"
@@ -551,6 +559,7 @@ export function createBackupBundle(params: {
       amount: t.amount,
       transactionDate: t.transactionDate,
       note: t.note,
+      tag: t.tag ?? null,
       recipientName: t.recipientName ?? null,
       recipientBank: t.recipientBank ?? null,
       recipientAccount: maskAccountNumber(t.recipientAccount),

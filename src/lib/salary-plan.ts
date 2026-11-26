@@ -216,6 +216,7 @@ export function buildSalaryPlanSummary(params: {
   }
 
   let periodIncomeDec = new Decimal(0);
+  let salaryReceivedThisPeriodDec = new Decimal(0);
   let periodExpenseDec = new Decimal(0);
   let todayIncomeDec = new Decimal(0);
   let todayExpenseDec = new Decimal(0);
@@ -238,6 +239,14 @@ export function buildSalaryPlanSummary(params: {
 
     if (tx.type === "income") {
       periodIncomeDec = periodIncomeDec.plus(amountDec);
+      const isSalaryTx =
+        (tx.note ?? "").trim().startsWith("รับเงินเดือน") ||
+        (tx.categoryName === "เงินเดือน" &&
+          monthlySalaryDec.gt(0) &&
+          amountDec.gte(monthlySalaryDec.times(0.5)));
+      if (isSalaryTx) {
+        salaryReceivedThisPeriodDec = salaryReceivedThisPeriodDec.plus(amountDec);
+      }
     } else if (tx.type === "expense") {
       periodExpenseDec = periodExpenseDec.plus(amountDec);
     } else if (tx.type === "transfer" && tx.toWalletId) {
@@ -392,6 +401,7 @@ export function buildSalaryPlanSummary(params: {
     isOverAllocated,
     spendableBudget: formatFixed2(spendableBudgetDec),
     periodIncome: formatFixed2(periodIncomeDec),
+    salaryReceivedThisPeriod: formatFixed2(salaryReceivedThisPeriodDec),
     periodExpense: formatFixed2(periodExpenseDec),
     remainingToSpend: formatFixed2(remainingToSpendDec),
     todayDate: todayIso,
